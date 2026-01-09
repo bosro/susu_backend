@@ -1,0 +1,338 @@
+// src/prisma/schema.prisma
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  SUPER_ADMIN
+  COMPANY_ADMIN
+  AGENT
+}
+
+enum CompanyStatus {
+  PENDING
+  ACTIVE
+  SUSPENDED
+  INACTIVE
+}
+
+enum SusuPlanType {
+  DAILY
+  WEEKLY
+  FIXED_AMOUNT
+  TARGET_SAVINGS
+  DURATION_BASED
+}
+
+enum CollectionStatus {
+  PENDING
+  COLLECTED
+  MISSED
+  PARTIAL
+}
+
+enum TransactionType {
+  DEPOSIT
+  WITHDRAWAL
+  TRANSFER
+  FEE
+}
+
+model Company {
+  id          String        @id @default(uuid())
+  name        String
+  email       String        @unique
+  phone       String?
+  address     String?
+  logo        String?
+  primaryColor String?      @default("#4F46E5")
+  secondaryColor String?    @default("#818CF8")
+  status      CompanyStatus @default(PENDING)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  
+  // Relations
+  users       User[]
+  branches    Branch[]
+  customers   Customer[]
+  susuPlans   SusuPlan[]
+  collections Collection[]
+  dailySummaries DailySummary[]
+  notifications Notification[]
+  auditLogs   AuditLog[]
+  
+  @@index([status])
+  @@index([email])
+}
+
+model User {
+  id          String    @id @default(uuid())
+  companyId   String?
+  email       String    @unique
+  password    String
+  firstName   String
+  lastName    String
+  phone       String?
+  role        UserRole
+  isActive    Boolean   @default(true)
+  lastLogin   DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  
+  // Relations
+  company     Company?  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  branch      Branch?   @relation(fields: [branchId], references: [id])
+  branchId    String?
+  
+  collectionsRecorded Collection[]
+  dailySummaries DailySummary[]
+  createdNotifications Notification[] @relation("CreatedNotifications")
+  receivedNotifications Notification[] @relation("ReceivedNotifications")
+  auditLogs   AuditLog[]
+  refreshTokens RefreshToken[]
+  
+  @@index([companyId])
+  @@index([email])
+  @@index([role])
+  @@index([branchId])
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId])
+  @@index([token])
+}
+
+model Branch {
+  id          String    @id @default(uuid())
+  companyId   String
+  name        String
+  address     String?
+  phone       String?
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  
+  // Relations
+  company     Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  agents      User[]
+  customers   Customer[]
+  collections Collection[]
+  dailySummaries DailySummary[]
+  
+  @@index([companyId])
+  @@index([isActive])
+}
+
+model Customer {
+  id          String    @id @default(uuid())
+  companyId   String
+  branchId    String
+  firstName   String
+  lastName    String
+  phone       String
+  email       String?
+  address     String?
+  idNumber    String?
+  photoUrl    String?
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  
+  // Relations
+  company     Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  branch      Branch    @relation(fields: [branchId], references: [id])
+  susuAccounts SusuAccount[]
+  collections Collection[]
+  
+  @@unique([companyId, phone])
+  @@index([companyId])
+  @@index([branchId])
+  @@index([phone])
+}
+
+model SusuPlan {
+  id          String        @id @default(uuid())
+  companyId   String
+  name        String
+  description String?
+  type        SusuPlanType
+  amount      Decimal       @db.Decimal(10, 2)
+  frequency   String?       // daily, weekly, monthly
+  duration    Int?          // in days
+  targetAmount Decimal?     @db.Decimal(10, 2)
+  imageUrl    String?
+  isActive    Boolean       @default(true)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  
+  // Relations
+  company     Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  susuAccounts SusuAccount[]
+  
+  @@index([companyId])
+  @@index([isActive])
+  @@index([type])
+}
+
+model SusuAccount {
+  id          String    @id @default(uuid())
+  customerId  String
+  susuPlanId  String
+  accountNumber String  @unique
+  balance     Decimal   @db.Decimal(10, 2) @default(0)
+  targetAmount Decimal? @db.Decimal(10, 2)
+  startDate   DateTime  @default(now())
+  endDate     DateTime?
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  
+  // Relations
+  customer    Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  susuPlan    SusuPlan  @relation(fields: [susuPlanId], references: [id])
+  collections Collection[]
+  transactions Transaction[]
+  
+  @@index([customerId])
+  @@index([susuPlanId])
+  @@index([isActive])
+}
+
+model Collection {
+  id          String           @id @default(uuid())
+  companyId   String
+  branchId    String
+  customerId  String
+  susuAccountId String
+  agentId     String
+  amount      Decimal          @db.Decimal(10, 2)
+  expectedAmount Decimal?      @db.Decimal(10, 2)
+  collectionDate DateTime      @default(now())
+  status      CollectionStatus @default(COLLECTED)
+  notes       String?
+  latitude    String?
+  longitude   String?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  
+  // Relations
+  company     Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  branch      Branch        @relation(fields: [branchId], references: [id])
+  customer    Customer      @relation(fields: [customerId], references: [id])
+  susuAccount SusuAccount   @relation(fields: [susuAccountId], references: [id])
+  agent       User          @relation(fields: [agentId], references: [id])
+  
+  @@index([companyId])
+  @@index([branchId])
+  @@index([customerId])
+  @@index([agentId])
+  @@index([collectionDate])
+  @@index([status])
+}
+
+model Transaction {
+  id          String          @id @default(uuid())
+  susuAccountId String
+  type        TransactionType
+  amount      Decimal         @db.Decimal(10, 2)
+  balanceBefore Decimal       @db.Decimal(10, 2)
+  balanceAfter Decimal        @db.Decimal(10, 2)
+  reference   String          @unique
+  description String?
+  metadata    Json?
+  createdAt   DateTime        @default(now())
+  
+  // Relations
+  susuAccount SusuAccount     @relation(fields: [susuAccountId], references: [id], onDelete: Cascade)
+  
+  @@index([susuAccountId])
+  @@index([type])
+  @@index([createdAt])
+}
+
+model DailySummary {
+  id          String    @id @default(uuid())
+  companyId   String
+  branchId    String
+  agentId     String
+  date        DateTime  @db.Date
+  totalExpected Decimal @db.Decimal(10, 2)
+  totalCollected Decimal @db.Decimal(10, 2)
+  totalCustomers Int
+  collectionsCount Int
+  missedCount Int
+  isLocked    Boolean   @default(false)
+  notes       String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  
+  // Relations
+  company     Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  branch      Branch    @relation(fields: [branchId], references: [id])
+  agent       User      @relation(fields: [agentId], references: [id])
+  
+  @@unique([companyId, branchId, agentId, date])
+  @@index([companyId])
+  @@index([branchId])
+  @@index([agentId])
+  @@index([date])
+}
+
+model Notification {
+  id          String    @id @default(uuid())
+  companyId   String
+  userId      String?
+  title       String
+  message     String
+  type        String    // INFO, WARNING, SUCCESS, ERROR
+  isRead      Boolean   @default(false)
+  data        Json?
+  createdBy   String?
+  createdAt   DateTime  @default(now())
+  
+  // Relations
+  company     Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user        User?     @relation("ReceivedNotifications", fields: [userId], references: [id])
+  creator     User?     @relation("CreatedNotifications", fields: [createdBy], references: [id])
+  
+  @@index([companyId])
+  @@index([userId])
+  @@index([isRead])
+  @@index([createdAt])
+}
+
+model AuditLog {
+  id          String    @id @default(uuid())
+  companyId   String
+  userId      String
+  action      String
+  entityType  String
+  entityId    String?
+  changes     Json?
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime  @default(now())
+  
+  // Relations
+  company     Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user        User      @relation(fields: [userId], references: [id])
+  
+  @@index([companyId])
+  @@index([userId])
+  @@index([action])
+  @@index([entityType])
+  @@index([createdAt])
+}
