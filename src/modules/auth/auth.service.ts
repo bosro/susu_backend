@@ -116,6 +116,9 @@ export class AuthService {
   }
 
   async login(email: string, password: string, ipAddress?: string, userAgent?: string) {
+    console.log('🔍 Login attempt for email:', email);
+    console.log('🔍 Password length:', password.length);
+    
     // Find user
     const user = await prisma.user.findUnique({
       where: { email },
@@ -141,25 +144,42 @@ export class AuthService {
     });
 
     if (!user) {
+      console.log('❌ User not found');
       throw new Error('Invalid credentials');
     }
 
+    console.log('✅ User found:', user.email);
+    console.log('🔍 User active status:', user.isActive);
+    console.log('🔍 User role:', user.role);
+    console.log('🔍 Stored password hash (first 20 chars):', user.password.substring(0, 20));
+
     // Check if user is active
     if (!user.isActive) {
+      console.log('❌ Account is inactive');
       throw new Error('Account is inactive');
     }
 
     // Check if company is active (for non-super admins)
     if (user.role !== UserRole.SUPER_ADMIN && user.company?.status !== CompanyStatus.ACTIVE) {
+      console.log('❌ Company account is not active:', user.company?.status);
       throw new Error('Company account is not active');
     }
 
     // Verify password
+    console.log('🔍 Comparing passwords...');
+    console.log('🔍 Plain password:', password);
+    console.log('🔍 Hash from DB:', user.password);
+    
     const isPasswordValid = await BcryptUtil.compare(password, user.password);
+    
+    console.log('🔍 Password comparison result:', isPasswordValid);
 
     if (!isPasswordValid) {
+      console.log('❌ Invalid password');
       throw new Error('Invalid credentials');
     }
+
+    console.log('✅ Password valid, generating tokens...');
 
     // Generate tokens
     const tokenPayload: ITokenPayload = {

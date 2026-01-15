@@ -103,17 +103,17 @@ async function main() {
     },
   });
 
-  const weeklyPlan = await prisma.susuPlan.create({
-    data: {
-      companyId: demoCompany.id,
-      name: 'Weekly Savings Plan',
-      description: 'Save a fixed amount weekly',
-      type: 'WEEKLY',
-      amount: 50,
-      frequency: 'weekly',
-      isActive: true,
-    },
-  });
+  // const _weeklyPlan = await prisma.susuPlan.create({
+  //   data: {
+  //     companyId: demoCompany.id,
+  //     name: 'Weekly Savings Plan',
+  //     description: 'Save a fixed amount weekly',
+  //     type: 'WEEKLY',
+  //     amount: 50,
+  //     frequency: 'weekly',
+  //     isActive: true,
+  //   },
+  // });
 
   console.log('✅ Demo Susu Plans created');
 
