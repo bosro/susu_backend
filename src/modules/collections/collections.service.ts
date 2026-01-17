@@ -166,7 +166,15 @@ export class CollectionsService {
 
   async getAll(
     companyId: string | null,
-    query: IPaginationQuery,
+    query: IPaginationQuery & {
+      customerId?: string;
+      susuAccountId?: string;
+      branchId?: string;
+      agentId?: string;
+      status?: string;
+      startDate?: string;
+      endDate?: string;
+    },
     userRole: UserRole,
     userId?: string,
     userBranchId?: string
@@ -191,7 +199,6 @@ export class CollectionsService {
 
     // ✅ CRITICAL: Role-based data scoping
     if (userRole === UserRole.AGENT) {
-      // Agents can ONLY see their own collections
       if (!userId) {
         console.warn("❌ Agent has no user ID");
         throw new Error("Agent ID is required");
@@ -199,15 +206,12 @@ export class CollectionsService {
 
       where.agentId = userId;
 
-      // Also restrict to their branch if assigned
       if (userBranchId) {
         where.branchId = userBranchId;
       }
 
       console.log("✅ Agent scope applied - filtered to agentId:", userId);
     } else if (userRole === UserRole.COMPANY_ADMIN) {
-      // Company admins see all collections in their company
-      // But can optionally filter
       if (query.branchId) {
         where.branchId = query.branchId;
       }
@@ -217,9 +221,8 @@ export class CollectionsService {
 
       console.log("✅ Company admin scope - can see all company data");
     }
-    // SUPER_ADMIN sees everything with no additional restrictions
 
-    // Additional filters (applied to all roles within their scope)
+    // Additional filters
     if (query.customerId) {
       where.customerId = query.customerId;
     }
@@ -312,7 +315,6 @@ export class CollectionsService {
       limit
     );
   }
-
   async getById(
     id: string,
     companyId: string,
