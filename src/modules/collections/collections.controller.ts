@@ -125,18 +125,27 @@ export class CollectionsController {
   };
 
   getStats = async (
-    req: IAuthRequest,
-    res: Response,
-    next: NextFunction
-  ): Promise<void> => {
-    try {
-      const companyId = req.user!.companyId!;
-      const stats = await this.collectionsService.getStats(companyId, req.query);
-      ResponseUtil.success(res, stats, 'Collection stats retrieved successfully');
-    } catch (error: any) {
-      next(error);
-    }
-  };
+  req: IAuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    // ✅ For SUPER_ADMIN, companyId can be null to see all companies
+    const companyId = req.user!.companyId || null;
+    
+    console.log('📊 Getting collection stats:', {
+      companyId,
+      userRole: req.user!.role,
+      filters: req.query
+    });
+
+    const stats = await this.collectionsService.getStats(companyId, req.query);
+    ResponseUtil.success(res, stats, 'Collection stats retrieved successfully');
+  } catch (error: any) {
+    next(error);
+  }
+};
+
 }
 
 

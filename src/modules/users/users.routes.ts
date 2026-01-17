@@ -13,7 +13,7 @@ const usersController = new UsersController();
 // All routes require authentication and company admin role
 router.use(
   AuthMiddleware.authenticate,
-  AuthMiddleware.authorize(UserRole.COMPANY_ADMIN),
+  AuthMiddleware.authorize(UserRole.SUPER_ADMIN,UserRole.COMPANY_ADMIN),
   TenantMiddleware.validateCompanyAccess
 );
 

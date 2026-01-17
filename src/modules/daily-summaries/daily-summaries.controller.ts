@@ -53,79 +53,79 @@ export class DailySummariesController {
     }
   };
 
-  getById = async (
-    req: IAuthRequest,
-    res: Response,
-    next: NextFunction
-  ): Promise<void> => {
-    try {
-      const companyId = req.user!.companyId!;
-      const summary = await this.dailySummariesService.getById(
-        req.params.id,
-        companyId,
-        req.user!.role,
-        req.user!.id
-      );
-      ResponseUtil.success(res, summary, 'Daily summary retrieved successfully');
-    } catch (error: any) {
-      next(error);
-    }
-  };
+async getById(
+  req: IAuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const companyId = req.user!.companyId || null; // ✅ Allow null for SUPER_ADMIN
+    const summary = await this.dailySummariesService.getById(
+      req.params.id,
+      companyId,
+      req.user!.role,
+      req.user!.id
+    );
+    ResponseUtil.success(res, summary, 'Daily summary retrieved successfully');
+  } catch (error: any) {
+    next(error);
+  }
+}
 
-  update = async (
-    req: IAuthRequest,
-    res: Response,
-    next: NextFunction
-  ): Promise<void> => {
-    try {
-      const companyId = req.user!.companyId!;
-      const summary = await this.dailySummariesService.update(
-        req.params.id,
-        companyId,
-        req.body,
-        req.user!.id
-      );
-      ResponseUtil.success(res, summary, 'Daily summary updated successfully');
-    } catch (error: any) {
-      next(error);
-    }
-  };
+async update(
+  req: IAuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const companyId = req.user!.companyId || null; // ✅ Allow null
+    const summary = await this.dailySummariesService.update(
+      req.params.id,
+      companyId,
+      req.body,
+      req.user!.id
+    );
+    ResponseUtil.success(res, summary, 'Daily summary updated successfully');
+  } catch (error: any) {
+    next(error);
+  }
+}
 
-  lock = async (
-    req: IAuthRequest,
-    res: Response,
-    next: NextFunction
-  ): Promise<void> => {
-    try {
-      const companyId = req.user!.companyId!;
-      const summary = await this.dailySummariesService.lock(
-        req.params.id,
-        companyId,
-        req.user!.id
-      );
-      ResponseUtil.success(res, summary, 'Daily summary locked successfully');
-    } catch (error: any) {
-      next(error);
-    }
-  };
+async lock(
+  req: IAuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const companyId = req.user!.companyId || null; // ✅ Allow null
+    const summary = await this.dailySummariesService.lock(
+      req.params.id,
+      companyId,
+      req.user!.id
+    );
+    ResponseUtil.success(res, summary, 'Daily summary locked successfully');
+  } catch (error: any) {
+    next(error);
+  }
+}
 
-  unlock = async (
-    req: IAuthRequest,
-    res: Response,
-    next: NextFunction
-  ): Promise<void> => {
-    try {
-      const companyId = req.user!.companyId!;
-      const summary = await this.dailySummariesService.unlock(
-        req.params.id,
-        companyId,
-        req.user!.id
-      );
-      ResponseUtil.success(res, summary, 'Daily summary unlocked successfully');
-    } catch (error: any) {
-      next(error);
-    }
-  };
+async unlock(
+  req: IAuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const companyId = req.user!.companyId || null; // ✅ Allow null
+    const summary = await this.dailySummariesService.unlock(
+      req.params.id,
+      companyId,
+      req.user!.id
+    );
+    ResponseUtil.success(res, summary, 'Daily summary unlocked successfully');
+  } catch (error: any) {
+    next(error);
+  }
+}
 
   getStats = async (
     req: IAuthRequest,

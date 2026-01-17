@@ -545,76 +545,81 @@ export class CollectionsService {
   }
 
   async getStats(
-    companyId: string,
-    filters: {
-      startDate?: Date;
-      endDate?: Date;
-      branchId?: string;
-      agentId?: string;
-    }
-  ) {
-    const where: any = { companyId };
-
-    if (filters.branchId) {
-      where.branchId = filters.branchId;
-    }
-
-    if (filters.agentId) {
-      where.agentId = filters.agentId;
-    }
-
-    if (filters.startDate || filters.endDate) {
-      where.collectionDate = {};
-      if (filters.startDate) {
-        where.collectionDate.gte = filters.startDate;
-      }
-      if (filters.endDate) {
-        where.collectionDate.lte = filters.endDate;
-      }
-    }
-
-    const [total, collected, missed, partial] = await Promise.all([
-      prisma.collection.aggregate({
-        where,
-        _sum: { amount: true, expectedAmount: true },
-        _count: true,
-      }),
-      prisma.collection.aggregate({
-        where: { ...where, status: CollectionStatus.COLLECTED },
-        _sum: { amount: true },
-        _count: true,
-      }),
-      prisma.collection.count({
-        where: { ...where, status: CollectionStatus.MISSED },
-      }),
-      prisma.collection.aggregate({
-        where: { ...where, status: CollectionStatus.PARTIAL },
-        _sum: { amount: true },
-        _count: true,
-      }),
-    ]);
-
-    return {
-      total: {
-        amount: total._sum.amount || 0,
-        expectedAmount: total._sum.expectedAmount || 0,
-        count: total._count,
-      },
-      collected: {
-        amount: collected._sum.amount || 0,
-        count: collected._count,
-      },
-      missed: {
-        count: missed,
-      },
-      partial: {
-        amount: partial._sum.amount || 0,
-        count: partial._count,
-      },
-      collectionRate:
-        total._count > 0
-          ? ((collected._count / total._count) * 100).toFixed(2)
-          : "0",
-    };
+  companyId: string | null,  // ✅ Allow null for SUPER_ADMIN
+  filters: {
+    startDate?: Date;
+    endDate?: Date;
+    branchId?: string;
+    agentId?: string;
   }
+) {
+  const where: any = {};
+
+  // ✅ Only set companyId if not null (SUPER_ADMIN can see all companies)
+  if (companyId !== null) {
+    where.companyId = companyId;
+  }
+
+  if (filters.branchId) {
+    where.branchId = filters.branchId;
+  }
+
+  if (filters.agentId) {
+    where.agentId = filters.agentId;
+  }
+
+  if (filters.startDate || filters.endDate) {
+    where.collectionDate = {};
+    if (filters.startDate) {
+      where.collectionDate.gte = filters.startDate;
+    }
+    if (filters.endDate) {
+      where.collectionDate.lte = filters.endDate;
+    }
+  }
+
+  const [total, collected, missed, partial] = await Promise.all([
+    prisma.collection.aggregate({
+      where,
+      _sum: { amount: true, expectedAmount: true },
+      _count: true,
+    }),
+    prisma.collection.aggregate({
+      where: { ...where, status: CollectionStatus.COLLECTED },
+      _sum: { amount: true },
+      _count: true,
+    }),
+    prisma.collection.count({
+      where: { ...where, status: CollectionStatus.MISSED },
+    }),
+    prisma.collection.aggregate({
+      where: { ...where, status: CollectionStatus.PARTIAL },
+      _sum: { amount: true },
+      _count: true,
+    }),
+  ]);
+
+  return {
+    total: {
+      amount: total._sum.amount || 0,
+      expectedAmount: total._sum.expectedAmount || 0,
+      count: total._count,
+    },
+    collected: {
+      amount: collected._sum.amount || 0,
+      count: collected._count,
+    },
+    missed: {
+      count: missed,
+    },
+    partial: {
+      amount: partial._sum.amount || 0,
+      count: partial._count,
+    },
+    collectionRate:
+      total._count > 0
+        ? ((collected._count / total._count) * 100).toFixed(2)
+        : "0",
+  };
+}
 }
