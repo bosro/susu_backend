@@ -19,7 +19,7 @@ router.use(
 
 router.post(
   '/',
-  AuthMiddleware.authorize(UserRole.COMPANY_ADMIN, UserRole.AGENT),
+  AuthMiddleware.authorize(UserRole.SUPER_ADMIN, UserRole.COMPANY_ADMIN, UserRole.AGENT), // ✅ Added SUPER_ADMIN
   ValidationMiddleware.validate(customersValidation.create),
   customersController.create
 );
@@ -38,7 +38,7 @@ router.get(
 
 router.patch(
   '/:id',
-  AuthMiddleware.authorize(UserRole.COMPANY_ADMIN, UserRole.AGENT),
+  AuthMiddleware.authorize(UserRole.SUPER_ADMIN, UserRole.COMPANY_ADMIN, UserRole.AGENT), // ✅ Added SUPER_ADMIN
   ValidationMiddleware.validateParams(customersValidation.params),
   ValidationMiddleware.validate(customersValidation.update),
   customersController.update
@@ -46,14 +46,14 @@ router.patch(
 
 router.delete(
   '/:id',
-  AuthMiddleware.authorize(UserRole.COMPANY_ADMIN),
+  AuthMiddleware.authorize(UserRole.SUPER_ADMIN, UserRole.COMPANY_ADMIN), // ✅ Added SUPER_ADMIN
   ValidationMiddleware.validateParams(customersValidation.params),
   customersController.delete
 );
 
 router.post(
   '/:id/photo',
-  AuthMiddleware.authorize(UserRole.COMPANY_ADMIN, UserRole.AGENT),
+  AuthMiddleware.authorize(UserRole.SUPER_ADMIN, UserRole.COMPANY_ADMIN, UserRole.AGENT), // ✅ Added SUPER_ADMIN
   ValidationMiddleware.validateParams(customersValidation.params),
   upload.single('photo'),
   customersController.uploadPhoto

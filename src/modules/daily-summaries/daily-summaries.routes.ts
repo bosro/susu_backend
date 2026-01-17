@@ -18,7 +18,7 @@ router.use(
 
 router.post(
   '/generate',
-  AuthMiddleware.authorize(UserRole.AGENT),
+  AuthMiddleware.authorize(UserRole.SUPER_ADMIN, UserRole.COMPANY_ADMIN, UserRole.AGENT), // ✅ Added SUPER_ADMIN & COMPANY_ADMIN
   TenantMiddleware.validateBranchAccess,
   ValidationMiddleware.validate(dailySummariesValidation.generateParams),
   dailySummariesController.generate
@@ -44,7 +44,7 @@ router.get(
 
 router.patch(
   '/:id',
-  AuthMiddleware.authorize(UserRole.COMPANY_ADMIN),
+  AuthMiddleware.authorize(UserRole.SUPER_ADMIN, UserRole.COMPANY_ADMIN), // ✅ Added SUPER_ADMIN
   ValidationMiddleware.validateParams(dailySummariesValidation.params),
   ValidationMiddleware.validate(dailySummariesValidation.update),
   dailySummariesController.update
@@ -52,14 +52,14 @@ router.patch(
 
 router.post(
   '/:id/lock',
-  AuthMiddleware.authorize(UserRole.COMPANY_ADMIN),
+  AuthMiddleware.authorize(UserRole.SUPER_ADMIN, UserRole.COMPANY_ADMIN), // ✅ Added SUPER_ADMIN
   ValidationMiddleware.validateParams(dailySummariesValidation.params),
   dailySummariesController.lock
 );
 
 router.post(
   '/:id/unlock',
-  AuthMiddleware.authorize(UserRole.COMPANY_ADMIN),
+  AuthMiddleware.authorize(UserRole.SUPER_ADMIN, UserRole.COMPANY_ADMIN), // ✅ Added SUPER_ADMIN
   ValidationMiddleware.validateParams(dailySummariesValidation.params),
   dailySummariesController.unlock
 );

@@ -18,6 +18,8 @@ export class SusuAccountsService {
     },
     createdBy: string
   ) {
+    console.log('💳 Creating susu account:', { companyId, customerId: data.customerId });
+
     // Validate customer belongs to company
     const customer = await prisma.customer.findFirst({
       where: { id: data.customerId, companyId },
@@ -29,11 +31,11 @@ export class SusuAccountsService {
 
     // Validate susu plan belongs to company
     const susuPlan = await prisma.susuPlan.findFirst({
-      where: { id: data.susuPlanId, companyId },
+      where: { id: data.susuPlanId, companyId, isActive: true },
     });
 
     if (!susuPlan) {
-      throw new Error('Susu plan not found');
+      throw new Error('Susu plan not found or is inactive');
     }
 
     // Generate unique account number
@@ -44,9 +46,10 @@ export class SusuAccountsService {
         customerId: data.customerId,
         susuPlanId: data.susuPlanId,
         accountNumber,
-        targetAmount: data.targetAmount || susuPlan.targetAmount,
+        balance: 0,
+        targetAmount: data.targetAmount || susuPlan.targetAmount || null,
         startDate: data.startDate || new Date(),
-        endDate: data.endDate,
+        endDate: data.endDate || null,
       },
       include: {
         customer: {
@@ -77,10 +80,17 @@ export class SusuAccountsService {
       changes: data,
     });
 
+    console.log('✅ Susu account created:', susuAccount.accountNumber);
+
     return susuAccount;
   }
 
-  async getAll(companyId: string, query: IPaginationQuery, userRole: UserRole, branchId?: string) {
+  async getAll(
+    companyId: string,
+    query: IPaginationQuery,
+    userRole: UserRole,
+    userBranchId?: string
+  ) {
     const { page, limit, skip, sortBy, sortOrder } =
       PaginationUtil.getPaginationParams(query);
 
@@ -88,16 +98,42 @@ export class SusuAccountsService {
       customer: { companyId },
     };
 
-    // Agents can only see accounts in their branch
-    if (userRole === UserRole.AGENT && branchId) {
-      where.customer.branchId = branchId;
+    console.log('Susu accounts query:', { companyId, userRole, userBranchId, query });
+
+    // ✅ CRITICAL: Role-based data scoping
+    if (userRole === UserRole.AGENT) {
+      // Agents can ONLY see accounts in their branch
+      if (!userBranchId) {
+        console.warn('❌ Agent has no branch assignment');
+        throw new Error('Agent must be assigned to a branch');
+      }
+      where.customer.branchId = userBranchId;
+      console.log('✅ Agent scope applied - filtered to branchId:', userBranchId);
+    } else if (userRole === UserRole.COMPANY_ADMIN) {
+      // Company admins see all accounts in their company
+      // Optional filtering is already handled by query params
+      console.log('✅ Company admin scope - can see all company accounts');
     }
+    // SUPER_ADMIN sees everything (no additional filtering)
 
     if (query.search) {
       where.OR = [
         { accountNumber: { contains: query.search, mode: 'insensitive' } },
-        { customer: { firstName: { contains: query.search, mode: 'insensitive' } } },
-        { customer: { lastName: { contains: query.search, mode: 'insensitive' } } },
+        {
+          customer: {
+            firstName: { contains: query.search, mode: 'insensitive' },
+          },
+        },
+        {
+          customer: {
+            lastName: { contains: query.search, mode: 'insensitive' },
+          },
+        },
+        {
+          customer: {
+            phone: { contains: query.search, mode: 'insensitive' },
+          },
+        },
       ];
     }
 
@@ -112,6 +148,8 @@ export class SusuAccountsService {
     if (query.isActive !== undefined) {
       where.isActive = query.isActive;
     }
+
+    console.log('Final where clause:', JSON.stringify(where, null, 2));
 
     const [accounts, total] = await Promise.all([
       prisma.susuAccount.findMany({
@@ -147,18 +185,29 @@ export class SusuAccountsService {
       prisma.susuAccount.count({ where }),
     ]);
 
+    console.log(`✅ Found ${accounts.length} accounts out of ${total} total`);
+
     return PaginationUtil.formatPaginationResult(accounts, total, page, limit);
   }
 
-  async getById(id: string, companyId: string, userRole: UserRole, branchId?: string) {
+  async getById(
+    id: string,
+    companyId: string,
+    userRole: UserRole,
+    userBranchId?: string
+  ) {
     const where: any = {
       id,
       customer: { companyId },
     };
 
-    // Agents can only see accounts in their branch
-    if (userRole === UserRole.AGENT && branchId) {
-      where.customer.branchId = branchId;
+    // ✅ Agents can only see accounts in their branch
+    if (userRole === UserRole.AGENT) {
+      if (!userBranchId) {
+        throw new Error('Agent must be assigned to a branch');
+      }
+      where.customer.branchId = userBranchId;
+      console.log('✅ Agent accessing account - filtered to branchId:', userBranchId);
     }
 
     const account = await prisma.susuAccount.findFirst({
@@ -200,7 +249,7 @@ export class SusuAccountsService {
     });
 
     if (!account) {
-      throw new Error('Susu account not found');
+      throw new Error('Susu account not found or you do not have access');
     }
 
     return account;
@@ -256,6 +305,8 @@ export class SusuAccountsService {
       changes: data,
     });
 
+    console.log('✅ Susu account updated successfully');
+
     return updated;
   }
 
@@ -265,6 +316,10 @@ export class SusuAccountsService {
     amount: number,
     withdrawBy: string
   ) {
+    if (amount <= 0) {
+      throw new Error('Withdrawal amount must be greater than zero');
+    }
+
     const account = await prisma.susuAccount.findFirst({
       where: {
         id,
@@ -280,17 +335,32 @@ export class SusuAccountsService {
       throw new Error('Account is not active');
     }
 
-    if (account.balance.toNumber() < amount) {
-      throw new Error('Insufficient balance');
+    const currentBalance = Number(account.balance);
+
+    if (currentBalance < amount) {
+      throw new Error(
+        `Insufficient balance. Available: GH₵${currentBalance.toFixed(2)}, Requested: GH₵${amount.toFixed(2)}`
+      );
     }
 
-    const newBalance = account.balance.toNumber() - amount;
+    const newBalance = currentBalance - amount;
+
+    console.log('💸 Processing withdrawal:', { accountId: id, amount, currentBalance, newBalance });
 
     // Update balance and create transaction
     const result = await prisma.$transaction(async (tx) => {
       const updated = await tx.susuAccount.update({
         where: { id },
         data: { balance: newBalance },
+        include: {
+          customer: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+            },
+          },
+        },
       });
 
       const transaction = await tx.transaction.create({
@@ -298,7 +368,7 @@ export class SusuAccountsService {
           susuAccountId: id,
           type: TransactionType.WITHDRAWAL,
           amount,
-          balanceBefore: account.balance,
+          balanceBefore: currentBalance,
           balanceAfter: newBalance,
           reference: AccountNumberUtil.generateReference('WDL'),
           description: `Withdrawal from account ${account.accountNumber}`,
@@ -317,10 +387,16 @@ export class SusuAccountsService {
       changes: { withdrawal: amount, newBalance },
     });
 
+    console.log('✅ Withdrawal processed successfully');
+
     return result;
   }
 
-  async getTransactions(id: string, companyId: string, query: IPaginationQuery) {
+  async getTransactions(
+    id: string,
+    companyId: string,
+    query: IPaginationQuery
+  ) {
     const account = await prisma.susuAccount.findFirst({
       where: {
         id,
@@ -345,6 +421,11 @@ export class SusuAccountsService {
       prisma.transaction.count({ where: { susuAccountId: id } }),
     ]);
 
-    return PaginationUtil.formatPaginationResult(transactions, total, page, limit);
+    return PaginationUtil.formatPaginationResult(
+      transactions,
+      total,
+      page,
+      limit
+    );
   }
 }

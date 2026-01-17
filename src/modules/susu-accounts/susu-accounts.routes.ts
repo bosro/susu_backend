@@ -18,7 +18,7 @@ router.use(
 
 router.post(
   '/',
-  AuthMiddleware.authorize(UserRole.COMPANY_ADMIN, UserRole.AGENT),
+  AuthMiddleware.authorize(UserRole.SUPER_ADMIN, UserRole.COMPANY_ADMIN, UserRole.AGENT), // ✅ Added SUPER_ADMIN
   ValidationMiddleware.validate(susuAccountsValidation.create),
   susuAccountsController.create
 );
@@ -37,7 +37,7 @@ router.get(
 
 router.patch(
   '/:id',
-  AuthMiddleware.authorize(UserRole.COMPANY_ADMIN),
+  AuthMiddleware.authorize(UserRole.SUPER_ADMIN, UserRole.COMPANY_ADMIN), // ✅ Added SUPER_ADMIN
   ValidationMiddleware.validateParams(susuAccountsValidation.params),
   ValidationMiddleware.validate(susuAccountsValidation.update),
   susuAccountsController.update
@@ -45,8 +45,9 @@ router.patch(
 
 router.post(
   '/:id/withdraw',
-  AuthMiddleware.authorize(UserRole.COMPANY_ADMIN),
+  AuthMiddleware.authorize(UserRole.SUPER_ADMIN, UserRole.COMPANY_ADMIN), // ✅ Added SUPER_ADMIN
   ValidationMiddleware.validateParams(susuAccountsValidation.params),
+  ValidationMiddleware.validate(susuAccountsValidation.withdraw),
   susuAccountsController.withdraw
 );
 

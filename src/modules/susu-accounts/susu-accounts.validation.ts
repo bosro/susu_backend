@@ -16,6 +16,10 @@ export const susuAccountsValidation = {
     isActive: Joi.boolean().optional(),
   }),
 
+  withdraw: Joi.object({
+    amount: Joi.number().positive().required(),
+  }),
+
   query: Joi.object({
     page: Joi.number().min(1).optional(),
     limit: Joi.number().min(1).max(100).optional(),

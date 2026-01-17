@@ -20,6 +20,17 @@ export class SusuPlansService {
     },
     createdBy: string
   ) {
+    console.log('📋 Creating susu plan:', { companyId, name: data.name, type: data.type });
+
+    // Validate plan type specific requirements
+    if (data.type === SusuPlanType.DURATION_BASED && !data.duration) {
+      throw new Error('Duration is required for duration-based plans');
+    }
+
+    if (data.type === SusuPlanType.TARGET_SAVINGS && !data.targetAmount) {
+      throw new Error('Target amount is required for target savings plans');
+    }
+
     const susuPlan = await prisma.susuPlan.create({
       data: {
         companyId,
@@ -49,6 +60,8 @@ export class SusuPlansService {
       changes: data,
     });
 
+    console.log('✅ Susu plan created:', susuPlan.name);
+
     return susuPlan;
   }
 
@@ -57,6 +70,8 @@ export class SusuPlansService {
       PaginationUtil.getPaginationParams(query);
 
     const where: any = { companyId };
+
+    console.log('Susu plans query:', { companyId, query });
 
     if (query.search) {
       where.OR = [
@@ -72,6 +87,8 @@ export class SusuPlansService {
     if (query.isActive !== undefined) {
       where.isActive = query.isActive;
     }
+
+    console.log('Final where clause:', JSON.stringify(where, null, 2));
 
     const [susuPlans, total] = await Promise.all([
       prisma.susuPlan.findMany({
@@ -89,6 +106,8 @@ export class SusuPlansService {
       }),
       prisma.susuPlan.count({ where }),
     ]);
+
+    console.log(`✅ Found ${susuPlans.length} susu plans out of ${total} total`);
 
     return PaginationUtil.formatPaginationResult(susuPlans, total, page, limit);
   }
@@ -135,9 +154,33 @@ export class SusuPlansService {
       throw new Error('Susu plan not found');
     }
 
+    // Validate type-specific requirements if type is being updated
+    const newType = data.type || susuPlan.type;
+    
+    if (newType === SusuPlanType.DURATION_BASED) {
+      const newDuration = data.duration !== undefined ? data.duration : susuPlan.duration;
+      if (!newDuration) {
+        throw new Error('Duration is required for duration-based plans');
+      }
+    }
+
+    if (newType === SusuPlanType.TARGET_SAVINGS) {
+      const newTargetAmount = data.targetAmount !== undefined ? data.targetAmount : susuPlan.targetAmount;
+      if (!newTargetAmount) {
+        throw new Error('Target amount is required for target savings plans');
+      }
+    }
+
     const updated = await prisma.susuPlan.update({
       where: { id },
       data,
+      include: {
+        _count: {
+          select: {
+            susuAccounts: true,
+          },
+        },
+      },
     });
 
     await AuditLogUtil.log({
@@ -148,6 +191,8 @@ export class SusuPlansService {
       entityId: id,
       changes: data,
     });
+
+    console.log('✅ Susu plan updated successfully');
 
     return updated;
   }
@@ -169,7 +214,9 @@ export class SusuPlansService {
     }
 
     if (susuPlan._count.susuAccounts > 0) {
-      throw new Error('Cannot delete susu plan with existing accounts');
+      throw new Error(
+        `Cannot delete susu plan with ${susuPlan._count.susuAccounts} active account(s). Please deactivate or reassign accounts first.`
+      );
     }
 
     await prisma.susuPlan.delete({ where: { id } });
@@ -182,10 +229,17 @@ export class SusuPlansService {
       entityId: id,
     });
 
+    console.log('✅ Susu plan deleted successfully');
+
     return { message: 'Susu plan deleted successfully' };
   }
 
-  async uploadImage(id: string, companyId: string, file: Buffer, uploadedBy: string) {
+  async uploadImage(
+    id: string,
+    companyId: string,
+    file: Buffer,
+    uploadedBy: string
+  ) {
     const susuPlan = await prisma.susuPlan.findFirst({
       where: { id, companyId },
     });
@@ -196,16 +250,31 @@ export class SusuPlansService {
 
     // Delete old image if exists
     if (susuPlan.imageUrl) {
-      const publicId = FileUploadUtil.extractPublicId(susuPlan.imageUrl);
-      await FileUploadUtil.deleteImage(publicId);
+      try {
+        const publicId = FileUploadUtil.extractPublicId(susuPlan.imageUrl);
+        await FileUploadUtil.deleteImage(publicId);
+      } catch (error) {
+        console.warn('Failed to delete old image:', error);
+        // Continue with upload even if deletion fails
+      }
     }
 
     // Upload new image
-    const { url } = await FileUploadUtil.uploadImage(file, `susu-plans/${companyId}`);
+    const { url } = await FileUploadUtil.uploadImage(
+      file,
+      `susu-plans/${companyId}`
+    );
 
     const updated = await prisma.susuPlan.update({
       where: { id },
       data: { imageUrl: url },
+      include: {
+        _count: {
+          select: {
+            susuAccounts: true,
+          },
+        },
+      },
     });
 
     await AuditLogUtil.log({
@@ -216,6 +285,8 @@ export class SusuPlansService {
       entityId: id,
       changes: { imageUrl: url },
     });
+
+    console.log('✅ Susu plan image uploaded successfully');
 
     return updated;
   }

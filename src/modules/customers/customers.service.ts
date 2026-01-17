@@ -74,18 +74,37 @@ export class CustomersService {
     return customer;
   }
 
-  async getAll(companyId: string, query: IPaginationQuery, userRole: UserRole, branchId?: string) {
+  async getAll(
+    companyId: string,
+    query: IPaginationQuery,
+    userRole: UserRole,
+    branchId?: string
+  ) {
     const { page, limit, skip, sortBy, sortOrder } =
       PaginationUtil.getPaginationParams(query);
 
     const where: any = { companyId };
 
-    // Agents can only see customers in their branch
-    if (userRole === UserRole.AGENT && branchId) {
+    console.log('Customers query:', { companyId, userRole, branchId, query }); // ✅ Debug log
+
+    // ✅ CRITICAL: Role-based data scoping
+    if (userRole === UserRole.AGENT) {
+      // Agents can ONLY see customers in their branch
+      if (!branchId) {
+        console.warn('❌ Agent has no branch assignment');
+        throw new Error('Agent must be assigned to a branch');
+      }
       where.branchId = branchId;
-    } else if (query.branchId) {
-      where.branchId = query.branchId;
+      console.log('✅ Agent scope applied - filtered to branchId:', branchId);
+    } else if (userRole === UserRole.COMPANY_ADMIN) {
+      // Company admins see all customers in their company
+      // But can optionally filter by branch
+      if (query.branchId) {
+        where.branchId = query.branchId;
+      }
+      console.log('✅ Company admin scope - can see all company customers');
     }
+    // SUPER_ADMIN sees everything (no additional filtering)
 
     if (query.search) {
       where.OR = [
@@ -99,6 +118,8 @@ export class CustomersService {
     if (query.isActive !== undefined) {
       where.isActive = query.isActive;
     }
+
+    console.log('Final where clause:', JSON.stringify(where, null, 2)); // ✅ Debug log
 
     const [customers, total] = await Promise.all([
       prisma.customer.findMany({
@@ -124,15 +145,26 @@ export class CustomersService {
       prisma.customer.count({ where }),
     ]);
 
+    console.log(`✅ Found ${customers.length} customers out of ${total} total`); // ✅ Debug log
+
     return PaginationUtil.formatPaginationResult(customers, total, page, limit);
   }
 
-  async getById(id: string, companyId: string, userRole: UserRole, branchId?: string) {
+  async getById(
+    id: string,
+    companyId: string,
+    userRole: UserRole,
+    branchId?: string
+  ) {
     const where: any = { id, companyId };
 
-    // Agents can only see customers in their branch
-    if (userRole === UserRole.AGENT && branchId) {
+    // ✅ Agents can only see customers in their branch
+    if (userRole === UserRole.AGENT) {
+      if (!branchId) {
+        throw new Error('Agent must be assigned to a branch');
+      }
       where.branchId = branchId;
+      console.log('✅ Agent accessing customer - filtered to branchId:', branchId);
     }
 
     const customer = await prisma.customer.findFirst({
@@ -166,7 +198,7 @@ export class CustomersService {
     });
 
     if (!customer) {
-      throw new Error('Customer not found');
+      throw new Error('Customer not found or you do not have access');
     }
 
     return customer;
@@ -263,8 +295,17 @@ export class CustomersService {
       throw new Error('Customer not found');
     }
 
+    // ✅ Enhanced validation
     if (customer._count.susuAccounts > 0) {
-      throw new Error('Cannot delete customer with existing susu accounts');
+      throw new Error(
+        `Cannot delete customer with ${customer._count.susuAccounts} active susu account(s). Please deactivate or transfer accounts first.`
+      );
+    }
+
+    if (customer._count.collections > 0) {
+      throw new Error(
+        `Cannot delete customer with ${customer._count.collections} collection record(s). Consider deactivating instead.`
+      );
     }
 
     await prisma.customer.delete({ where: { id } });
@@ -280,7 +321,12 @@ export class CustomersService {
     return { message: 'Customer deleted successfully' };
   }
 
-  async uploadPhoto(id: string, companyId: string, file: Buffer, uploadedBy: string) {
+  async uploadPhoto(
+    id: string,
+    companyId: string,
+    file: Buffer,
+    uploadedBy: string
+  ) {
     const customer = await prisma.customer.findFirst({
       where: { id, companyId },
     });
@@ -291,16 +337,32 @@ export class CustomersService {
 
     // Delete old photo if exists
     if (customer.photoUrl) {
-      const publicId = FileUploadUtil.extractPublicId(customer.photoUrl);
-      await FileUploadUtil.deleteImage(publicId);
+      try {
+        const publicId = FileUploadUtil.extractPublicId(customer.photoUrl);
+        await FileUploadUtil.deleteImage(publicId);
+      } catch (error) {
+        console.warn('Failed to delete old photo:', error);
+        // Continue with upload even if deletion fails
+      }
     }
 
     // Upload new photo
-    const { url } = await FileUploadUtil.uploadImage(file, `customers/${companyId}`);
+    const { url } = await FileUploadUtil.uploadImage(
+      file,
+      `customers/${companyId}`
+    );
 
     const updated = await prisma.customer.update({
       where: { id },
       data: { photoUrl: url },
+      include: {
+        branch: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
     });
 
     await AuditLogUtil.log({
@@ -351,8 +413,15 @@ export class CustomersService {
           amount: true,
           collectionDate: true,
           status: true,
+          susuAccount: {
+            select: {
+              id: true,
+              accountNumber: true,
+            },
+          },
           agent: {
             select: {
+              id: true,
               firstName: true,
               lastName: true,
             },

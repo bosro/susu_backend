@@ -15,6 +15,20 @@ export class BranchesService {
     },
     createdBy: string
   ) {
+    console.log('🏢 Creating branch:', { companyId, name: data.name });
+
+    // Check if branch name already exists in this company
+    const existingBranch = await prisma.branch.findFirst({
+      where: {
+        companyId,
+        name: data.name,
+      },
+    });
+
+    if (existingBranch) {
+      throw new Error('Branch with this name already exists');
+    }
+
     const branch = await prisma.branch.create({
       data: {
         companyId,
@@ -41,6 +55,8 @@ export class BranchesService {
       changes: data,
     });
 
+    console.log('✅ Branch created:', branch.name);
+
     return branch;
   }
 
@@ -49,6 +65,8 @@ export class BranchesService {
       PaginationUtil.getPaginationParams(query);
 
     const where: any = { companyId };
+
+    console.log('Branches query:', { companyId, query });
 
     if (query.search) {
       where.OR = [
@@ -60,6 +78,8 @@ export class BranchesService {
     if (query.isActive !== undefined) {
       where.isActive = query.isActive;
     }
+
+    console.log('Final where clause:', JSON.stringify(where, null, 2));
 
     const [branches, total] = await Promise.all([
       prisma.branch.findMany({
@@ -79,6 +99,8 @@ export class BranchesService {
       }),
       prisma.branch.count({ where }),
     ]);
+
+    console.log(`✅ Found ${branches.length} branches out of ${total} total`);
 
     return PaginationUtil.formatPaginationResult(branches, total, page, limit);
   }
@@ -102,6 +124,10 @@ export class BranchesService {
             email: true,
             phone: true,
             isActive: true,
+            lastLogin: true,
+          },
+          orderBy: {
+            createdAt: 'desc',
           },
         },
       },
@@ -133,9 +159,32 @@ export class BranchesService {
       throw new Error('Branch not found');
     }
 
+    // Check if name is being changed and if it's already in use
+    if (data.name && data.name !== branch.name) {
+      const existingBranch = await prisma.branch.findFirst({
+        where: {
+          companyId,
+          name: data.name,
+          id: { not: id },
+        },
+      });
+
+      if (existingBranch) {
+        throw new Error('Branch with this name already exists');
+      }
+    }
+
     const updated = await prisma.branch.update({
       where: { id },
       data,
+      include: {
+        _count: {
+          select: {
+            agents: true,
+            customers: true,
+          },
+        },
+      },
     });
 
     await AuditLogUtil.log({
@@ -146,6 +195,8 @@ export class BranchesService {
       entityId: id,
       changes: data,
     });
+
+    console.log('✅ Branch updated successfully');
 
     return updated;
   }
@@ -168,7 +219,9 @@ export class BranchesService {
     }
 
     if (branch._count.customers > 0 || branch._count.agents > 0) {
-      throw new Error('Cannot delete branch with existing customers or agents');
+      throw new Error(
+        `Cannot delete branch with ${branch._count.agents} agent(s) and ${branch._count.customers} customer(s). Please reassign them first.`
+      );
     }
 
     await prisma.branch.delete({ where: { id } });
@@ -181,6 +234,8 @@ export class BranchesService {
       entityId: id,
     });
 
+    console.log('✅ Branch deleted successfully');
+
     return { message: 'Branch deleted successfully' };
   }
 
@@ -192,6 +247,10 @@ export class BranchesService {
     if (!branch) {
       throw new Error('Branch not found');
     }
+
+    const today = new Date();
+    const startOfToday = new Date(today.setHours(0, 0, 0, 0));
+    const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
 
     const [
       totalAgents,
@@ -209,7 +268,7 @@ export class BranchesService {
         where: {
           branchId: id,
           collectionDate: {
-            gte: new Date(new Date().setHours(0, 0, 0, 0)),
+            gte: startOfToday,
           },
         },
         _sum: { amount: true },
@@ -219,7 +278,7 @@ export class BranchesService {
         where: {
           branchId: id,
           collectionDate: {
-            gte: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
+            gte: startOfMonth,
           },
         },
         _sum: { amount: true },

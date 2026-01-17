@@ -18,7 +18,7 @@ router.use(
 
 router.post(
   '/',
-  AuthMiddleware.authorize(UserRole.COMPANY_ADMIN),
+  AuthMiddleware.authorize(UserRole.SUPER_ADMIN, UserRole.COMPANY_ADMIN), // ✅ Added SUPER_ADMIN
   ValidationMiddleware.validate(branchesValidation.create),
   branchesController.create
 );
@@ -37,7 +37,7 @@ router.get(
 
 router.patch(
   '/:id',
-  AuthMiddleware.authorize(UserRole.COMPANY_ADMIN),
+  AuthMiddleware.authorize(UserRole.SUPER_ADMIN, UserRole.COMPANY_ADMIN), // ✅ Added SUPER_ADMIN
   ValidationMiddleware.validateParams(branchesValidation.params),
   ValidationMiddleware.validate(branchesValidation.update),
   branchesController.update
@@ -45,7 +45,7 @@ router.patch(
 
 router.delete(
   '/:id',
-  AuthMiddleware.authorize(UserRole.COMPANY_ADMIN),
+  AuthMiddleware.authorize(UserRole.SUPER_ADMIN, UserRole.COMPANY_ADMIN), // ✅ Added SUPER_ADMIN
   ValidationMiddleware.validateParams(branchesValidation.params),
   branchesController.delete
 );

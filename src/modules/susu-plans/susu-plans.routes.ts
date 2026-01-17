@@ -19,7 +19,7 @@ router.use(
 
 router.post(
   '/',
-  AuthMiddleware.authorize(UserRole.COMPANY_ADMIN),
+  AuthMiddleware.authorize(UserRole.SUPER_ADMIN, UserRole.COMPANY_ADMIN), // ✅ Added SUPER_ADMIN
   ValidationMiddleware.validate(susuPlansValidation.create),
   susuPlansController.create
 );
@@ -38,7 +38,7 @@ router.get(
 
 router.patch(
   '/:id',
-  AuthMiddleware.authorize(UserRole.COMPANY_ADMIN),
+  AuthMiddleware.authorize(UserRole.SUPER_ADMIN, UserRole.COMPANY_ADMIN), // ✅ Added SUPER_ADMIN
   ValidationMiddleware.validateParams(susuPlansValidation.params),
   ValidationMiddleware.validate(susuPlansValidation.update),
   susuPlansController.update
@@ -46,14 +46,14 @@ router.patch(
 
 router.delete(
   '/:id',
-  AuthMiddleware.authorize(UserRole.COMPANY_ADMIN),
+  AuthMiddleware.authorize(UserRole.SUPER_ADMIN, UserRole.COMPANY_ADMIN), // ✅ Added SUPER_ADMIN
   ValidationMiddleware.validateParams(susuPlansValidation.params),
   susuPlansController.delete
 );
 
 router.post(
   '/:id/image',
-  AuthMiddleware.authorize(UserRole.COMPANY_ADMIN),
+  AuthMiddleware.authorize(UserRole.SUPER_ADMIN, UserRole.COMPANY_ADMIN), // ✅ Added SUPER_ADMIN
   ValidationMiddleware.validateParams(susuPlansValidation.params),
   upload.single('image'),
   susuPlansController.uploadImage
