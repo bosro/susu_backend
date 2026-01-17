@@ -75,80 +75,83 @@ export class CustomersService {
   }
 
   async getAll(
-    companyId: string,
-    query: IPaginationQuery,
-    userRole: UserRole,
-    branchId?: string
-  ) {
-    const { page, limit, skip, sortBy, sortOrder } =
-      PaginationUtil.getPaginationParams(query);
+  companyId: string | null,
+  query: IPaginationQuery,
+  userRole: UserRole,
+  userBranchId?: string
+) {
+  const { page, limit, skip, sortBy, sortOrder } =
+    PaginationUtil.getPaginationParams(query);
 
-    const where: any = { companyId };
+  const where: any = {};
 
-    console.log('Customers query:', { companyId, userRole, branchId, query }); // ✅ Debug log
+  console.log('Customers query:', {
+    companyId,
+    userRole,
+    userBranchId,
+    query,
+  });
 
-    // ✅ CRITICAL: Role-based data scoping
-    if (userRole === UserRole.AGENT) {
-      // Agents can ONLY see customers in their branch
-      if (!branchId) {
-        console.warn('❌ Agent has no branch assignment');
-        throw new Error('Agent must be assigned to a branch');
-      }
-      where.branchId = branchId;
-      console.log('✅ Agent scope applied - filtered to branchId:', branchId);
-    } else if (userRole === UserRole.COMPANY_ADMIN) {
-      // Company admins see all customers in their company
-      // But can optionally filter by branch
-      if (query.branchId) {
-        where.branchId = query.branchId;
-      }
-      console.log('✅ Company admin scope - can see all company customers');
-    }
-    // SUPER_ADMIN sees everything (no additional filtering)
+  // ✅ FIX: Only set companyId if not SUPER_ADMIN
+  if (companyId !== null) {
+    where.companyId = companyId;
+  }
 
-    if (query.search) {
-      where.OR = [
-        { firstName: { contains: query.search, mode: 'insensitive' } },
-        { lastName: { contains: query.search, mode: 'insensitive' } },
-        { phone: { contains: query.search, mode: 'insensitive' } },
-        { email: { contains: query.search, mode: 'insensitive' } },
-      ];
-    }
+  // Role-based filtering
+  if (userRole === UserRole.AGENT && userBranchId) {
+    where.branchId = userBranchId;
+    console.log('✅ Agent scope applied - filtered to branchId:', userBranchId);
+  }
 
-    if (query.isActive !== undefined) {
-      where.isActive = query.isActive;
-    }
+  // Additional filters
+  if (query.branchId) {
+    where.branchId = query.branchId;
+  }
 
-    console.log('Final where clause:', JSON.stringify(where, null, 2)); // ✅ Debug log
+  if (query.isActive !== undefined) {
+    where.isActive = query.isActive;
+  }
 
-    const [customers, total] = await Promise.all([
-      prisma.customer.findMany({
-        where,
-        skip,
-        take: limit,
-        orderBy: { [sortBy]: sortOrder },
-        include: {
-          branch: {
-            select: {
-              id: true,
-              name: true,
-            },
-          },
-          _count: {
-            select: {
-              susuAccounts: true,
-              collections: true,
-            },
+  if (query.search) {
+    where.OR = [
+      { firstName: { contains: query.search, mode: 'insensitive' } },
+      { lastName: { contains: query.search, mode: 'insensitive' } },
+      { phone: { contains: query.search, mode: 'insensitive' } },
+      { email: { contains: query.search, mode: 'insensitive' } },
+      { idNumber: { contains: query.search, mode: 'insensitive' } },
+    ];
+  }
+
+  console.log('Final where clause:', JSON.stringify(where, null, 2));
+
+  const [customers, total] = await Promise.all([
+    prisma.customer.findMany({
+      where,
+      skip,
+      take: limit,
+      orderBy: { [sortBy]: sortOrder },
+      include: {
+        branch: {
+          select: {
+            id: true,
+            name: true,
           },
         },
-      }),
-      prisma.customer.count({ where }),
-    ]);
+        _count: {
+          select: {
+            susuAccounts: true,
+            collections: true,
+          },
+        },
+      },
+    }),
+    prisma.customer.count({ where }),
+  ]);
 
-    console.log(`✅ Found ${customers.length} customers out of ${total} total`); // ✅ Debug log
+  console.log(`✅ Found ${customers.length} customers out of ${total} total`);
 
-    return PaginationUtil.formatPaginationResult(customers, total, page, limit);
-  }
+  return PaginationUtil.formatPaginationResult(customers, total, page, limit);
+}
 
   async getById(
     id: string,

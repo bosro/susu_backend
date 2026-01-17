@@ -117,92 +117,94 @@ export class DailySummariesService {
   }
 
   async getAll(
-    companyId: string,
-    query: IPaginationQuery,
-    userRole: UserRole,
-    userId?: string,
-    userBranchId?: string
-  ) {
-    const { page, limit, skip, sortBy, sortOrder } =
-      PaginationUtil.getPaginationParams(query);
+  companyId: string | null,
+  query: IPaginationQuery,
+  userRole: UserRole,
+  userId?: string,
+  userBranchId?: string
+) {
+  const { page, limit, skip, sortBy, sortOrder } =
+    PaginationUtil.getPaginationParams(query);
 
-    const where: any = { companyId };
+  const where: any = {};
 
-    console.log('Daily summaries query:', { companyId, userRole, userId, userBranchId, query });
+  console.log('Daily summaries query:', {
+    companyId,
+    userRole,
+    userId,
+    userBranchId,
+    query,
+  });
 
-    // ✅ CRITICAL: Role-based data scoping
-    if (userRole === UserRole.AGENT) {
-      // Agents can ONLY see their own summaries
-      if (!userId) {
-        throw new Error('Agent ID is required');
-      }
-      where.agentId = userId;
-      
-      if (userBranchId) {
-        where.branchId = userBranchId;
-      }
-      
-      console.log('✅ Agent scope applied - filtered to agentId:', userId);
-    } else if (userRole === UserRole.COMPANY_ADMIN) {
-      // Company admins see all summaries in their company
-      // But can optionally filter
-      if (query.branchId) {
-        where.branchId = query.branchId;
-      }
-      if (query.agentId) {
-        where.agentId = query.agentId;
-      }
-      
-      console.log('✅ Company admin scope - can see all company summaries');
+  // ✅ FIX: Only set companyId if not SUPER_ADMIN
+  if (companyId !== null) {
+    where.companyId = companyId;
+  }
+
+  // Role-based filtering
+  if (userRole === UserRole.AGENT) {
+    if (!userId) {
+      throw new Error('Agent ID is required');
     }
-    // SUPER_ADMIN sees everything (no additional filtering)
+    where.agentId = userId;
 
-    if (query.isLocked !== undefined) {
-      where.isLocked = query.isLocked;
+    if (userBranchId) {
+      where.branchId = userBranchId;
     }
 
-    if (query.startDate || query.endDate) {
-      where.date = {};
-      if (query.startDate) {
-        where.date.gte = new Date(query.startDate);
-      }
-      if (query.endDate) {
-        where.date.lte = new Date(query.endDate);
-      }
+    console.log('✅ Agent scope applied - filtered to agentId:', userId);
+  } else if (userRole === UserRole.COMPANY_ADMIN) {
+    if (query.branchId) {
+      where.branchId = query.branchId;
     }
+    if (query.agentId) {
+      where.agentId = query.agentId;
+    }
+  }
 
-    console.log('Final where clause:', JSON.stringify(where, null, 2));
+  // Date filtering
+  if (query.startDate || query.endDate) {
+    where.date = {};
+    if (query.startDate) {
+      where.date.gte = new Date(query.startDate);
+    }
+    if (query.endDate) {
+      where.date.lte = new Date(query.endDate);
+    }
+  }
 
-    const [summaries, total] = await Promise.all([
-      prisma.dailySummary.findMany({
-        where,
-        skip,
-        take: limit,
-        orderBy: { [sortBy]: sortOrder },
-        include: {
-          branch: {
-            select: {
-              id: true,
-              name: true,
-            },
-          },
-          agent: {
-            select: {
-              id: true,
-              firstName: true,
-              lastName: true,
-              email: true,
-            },
+  console.log('Final where clause:', JSON.stringify(where, null, 2));
+
+  const [summaries, total] = await Promise.all([
+    prisma.dailySummary.findMany({
+      where,
+      skip,
+      take: limit,
+      orderBy: { [sortBy]: sortOrder },
+      include: {
+        branch: {
+          select: {
+            id: true,
+            name: true,
           },
         },
-      }),
-      prisma.dailySummary.count({ where }),
-    ]);
+        agent: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+          },
+        },
+      },
+    }),
+    prisma.dailySummary.count({ where }),
+  ]);
 
-    console.log(`✅ Found ${summaries.length} summaries out of ${total} total`);
+  console.log(`✅ Found ${summaries.length} summaries out of ${total} total`);
 
-    return PaginationUtil.formatPaginationResult(summaries, total, page, limit);
-  }
+  return PaginationUtil.formatPaginationResult(summaries, total, page, limit);
+}
 
   async getById(
     id: string,
@@ -400,63 +402,71 @@ export class DailySummariesService {
   }
 
   async getStats(
-    companyId: string,
-    filters: {
-      startDate?: Date;
-      endDate?: Date;
-      branchId?: string;
-      agentId?: string;
-    }
-  ) {
-    const where: any = { companyId };
-
-    if (filters.branchId) {
-      where.branchId = filters.branchId;
-    }
-
-    if (filters.agentId) {
-      where.agentId = filters.agentId;
-    }
-
-    if (filters.startDate || filters.endDate) {
-      where.date = {};
-      if (filters.startDate) {
-        where.date.gte = filters.startDate;
-      }
-      if (filters.endDate) {
-        where.date.lte = filters.endDate;
-      }
-    }
-
-    const summaries = await prisma.dailySummary.aggregate({
-      where,
-      _sum: {
-        totalExpected: true,
-        totalCollected: true,
-        totalCustomers: true,
-        collectionsCount: true,
-        missedCount: true,
-      },
-      _avg: {
-        totalExpected: true,
-        totalCollected: true,
-      },
-      _count: true,
-    });
-
-    return {
-      totalSummaries: summaries._count,
-      totalExpected: summaries._sum.totalExpected || 0,
-      totalCollected: summaries._sum.totalCollected || 0,
-      totalCustomers: summaries._sum.totalCustomers || 0,
-      totalCollections: summaries._sum.collectionsCount || 0,
-      totalMissed: summaries._sum.missedCount || 0,
-      averageExpected: summaries._avg.totalExpected || 0,
-      averageCollected: summaries._avg.totalCollected || 0,
-      collectionRate:
-        summaries._sum.totalExpected && Number(summaries._sum.totalExpected) > 0
-          ? ((Number(summaries._sum.totalCollected) / Number(summaries._sum.totalExpected)) * 100).toFixed(2)
-          : '0',
-    };
+  companyId: string | null,
+  filters: {
+    startDate?: Date;
+    endDate?: Date;
+    branchId?: string;
+    agentId?: string;
   }
+) {
+  const where: any = {};
+
+  // ✅ FIX: Only set companyId if not SUPER_ADMIN
+  if (companyId !== null) {
+    where.companyId = companyId;
+  }
+
+  if (filters.branchId) {
+    where.branchId = filters.branchId;
+  }
+
+  if (filters.agentId) {
+    where.agentId = filters.agentId;
+  }
+
+  if (filters.startDate || filters.endDate) {
+    where.date = {};
+    if (filters.startDate) {
+      where.date.gte = filters.startDate;
+    }
+    if (filters.endDate) {
+      where.date.lte = filters.endDate;
+    }
+  }
+
+  const summaries = await prisma.dailySummary.aggregate({
+    where,
+    _sum: {
+      totalExpected: true,
+      totalCollected: true,
+      totalCustomers: true,
+      collectionsCount: true,
+      missedCount: true,
+    },
+    _avg: {
+      totalExpected: true,
+      totalCollected: true,
+    },
+    _count: true,
+  });
+
+  return {
+    totalExpected: summaries._sum.totalExpected || 0,
+    totalCollected: summaries._sum.totalCollected || 0,
+    totalCustomers: summaries._sum.totalCustomers || 0,
+    collectionsCount: summaries._sum.collectionsCount || 0,
+    missedCount: summaries._sum.missedCount || 0,
+    avgExpected: summaries._avg.totalExpected || 0,
+    avgCollected: summaries._avg.totalCollected || 0,
+    totalSummaries: summaries._count,
+    collectionRate:
+      summaries._sum.collectionsCount && summaries._sum.totalCustomers
+        ? (
+            (summaries._sum.collectionsCount / summaries._sum.totalCustomers) *
+            100
+          ).toFixed(2)
+        : '0',
+  };
+}
 }

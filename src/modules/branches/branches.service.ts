@@ -1,9 +1,9 @@
 // src/modules/branches/branches.service.ts
-import { prisma } from '../../config/database';
-import { PaginationUtil } from '../../utils/pagination.util';
-import { AuditLogUtil } from '../../utils/audit-log.util';
-import { AuditAction } from '../../types/enums';
-import { IPaginationQuery } from '../../types/interfaces';
+import { prisma } from "../../config/database";
+import { PaginationUtil } from "../../utils/pagination.util";
+import { AuditLogUtil } from "../../utils/audit-log.util";
+import { AuditAction } from "../../types/enums";
+import { IPaginationQuery } from "../../types/interfaces";
 
 export class BranchesService {
   async create(
@@ -15,7 +15,7 @@ export class BranchesService {
     },
     createdBy: string
   ) {
-    console.log('🏢 Creating branch:', { companyId, name: data.name });
+    console.log("🏢 Creating branch:", { companyId, name: data.name });
 
     // Check if branch name already exists in this company
     const existingBranch = await prisma.branch.findFirst({
@@ -26,7 +26,7 @@ export class BranchesService {
     });
 
     if (existingBranch) {
-      throw new Error('Branch with this name already exists');
+      throw new Error("Branch with this name already exists");
     }
 
     const branch = await prisma.branch.create({
@@ -50,28 +50,33 @@ export class BranchesService {
       companyId,
       userId: createdBy,
       action: AuditAction.CREATE,
-      entityType: 'BRANCH',
+      entityType: "BRANCH",
       entityId: branch.id,
       changes: data,
     });
 
-    console.log('✅ Branch created:', branch.name);
+    console.log("✅ Branch created:", branch.name);
 
     return branch;
   }
 
-  async getAll(companyId: string, query: IPaginationQuery) {
+  async getAll(companyId: string | null, query: IPaginationQuery) {
     const { page, limit, skip, sortBy, sortOrder } =
       PaginationUtil.getPaginationParams(query);
 
-    const where: any = { companyId };
+    const where: any = {};
 
-    console.log('Branches query:', { companyId, query });
+    // ✅ FIX: Only set companyId if not SUPER_ADMIN
+    if (companyId !== null) {
+      where.companyId = companyId;
+    }
+
+    console.log("Branches query:", { companyId, query });
 
     if (query.search) {
       where.OR = [
-        { name: { contains: query.search, mode: 'insensitive' } },
-        { address: { contains: query.search, mode: 'insensitive' } },
+        { name: { contains: query.search, mode: "insensitive" } },
+        { address: { contains: query.search, mode: "insensitive" } },
       ];
     }
 
@@ -79,7 +84,7 @@ export class BranchesService {
       where.isActive = query.isActive;
     }
 
-    console.log('Final where clause:', JSON.stringify(where, null, 2));
+    console.log("Final where clause:", JSON.stringify(where, null, 2));
 
     const [branches, total] = await Promise.all([
       prisma.branch.findMany({
@@ -127,14 +132,14 @@ export class BranchesService {
             lastLogin: true,
           },
           orderBy: {
-            createdAt: 'desc',
+            createdAt: "desc",
           },
         },
       },
     });
 
     if (!branch) {
-      throw new Error('Branch not found');
+      throw new Error("Branch not found");
     }
 
     return branch;
@@ -156,7 +161,7 @@ export class BranchesService {
     });
 
     if (!branch) {
-      throw new Error('Branch not found');
+      throw new Error("Branch not found");
     }
 
     // Check if name is being changed and if it's already in use
@@ -170,7 +175,7 @@ export class BranchesService {
       });
 
       if (existingBranch) {
-        throw new Error('Branch with this name already exists');
+        throw new Error("Branch with this name already exists");
       }
     }
 
@@ -191,12 +196,12 @@ export class BranchesService {
       companyId,
       userId: updatedBy,
       action: AuditAction.UPDATE,
-      entityType: 'BRANCH',
+      entityType: "BRANCH",
       entityId: id,
       changes: data,
     });
 
-    console.log('✅ Branch updated successfully');
+    console.log("✅ Branch updated successfully");
 
     return updated;
   }
@@ -215,7 +220,7 @@ export class BranchesService {
     });
 
     if (!branch) {
-      throw new Error('Branch not found');
+      throw new Error("Branch not found");
     }
 
     if (branch._count.customers > 0 || branch._count.agents > 0) {
@@ -230,13 +235,13 @@ export class BranchesService {
       companyId,
       userId: deletedBy,
       action: AuditAction.DELETE,
-      entityType: 'BRANCH',
+      entityType: "BRANCH",
       entityId: id,
     });
 
-    console.log('✅ Branch deleted successfully');
+    console.log("✅ Branch deleted successfully");
 
-    return { message: 'Branch deleted successfully' };
+    return { message: "Branch deleted successfully" };
   }
 
   async getStats(id: string, companyId: string) {
@@ -245,7 +250,7 @@ export class BranchesService {
     });
 
     if (!branch) {
-      throw new Error('Branch not found');
+      throw new Error("Branch not found");
     }
 
     const today = new Date();

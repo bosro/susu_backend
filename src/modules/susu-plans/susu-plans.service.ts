@@ -1,10 +1,10 @@
 // src/modules/susu-plans/susu-plans.service.ts
-import { prisma } from '../../config/database';
-import { PaginationUtil } from '../../utils/pagination.util';
-import { AuditLogUtil } from '../../utils/audit-log.util';
-import { FileUploadUtil } from '../../utils/file-upload.util';
-import { AuditAction, SusuPlanType } from '../../types/enums';
-import { IPaginationQuery } from '../../types/interfaces';
+import { prisma } from "../../config/database";
+import { PaginationUtil } from "../../utils/pagination.util";
+import { AuditLogUtil } from "../../utils/audit-log.util";
+import { FileUploadUtil } from "../../utils/file-upload.util";
+import { AuditAction, SusuPlanType } from "../../types/enums";
+import { IPaginationQuery } from "../../types/interfaces";
 
 export class SusuPlansService {
   async create(
@@ -20,15 +20,19 @@ export class SusuPlansService {
     },
     createdBy: string
   ) {
-    console.log('📋 Creating susu plan:', { companyId, name: data.name, type: data.type });
+    console.log("📋 Creating susu plan:", {
+      companyId,
+      name: data.name,
+      type: data.type,
+    });
 
     // Validate plan type specific requirements
     if (data.type === SusuPlanType.DURATION_BASED && !data.duration) {
-      throw new Error('Duration is required for duration-based plans');
+      throw new Error("Duration is required for duration-based plans");
     }
 
     if (data.type === SusuPlanType.TARGET_SAVINGS && !data.targetAmount) {
-      throw new Error('Target amount is required for target savings plans');
+      throw new Error("Target amount is required for target savings plans");
     }
 
     const susuPlan = await prisma.susuPlan.create({
@@ -55,28 +59,33 @@ export class SusuPlansService {
       companyId,
       userId: createdBy,
       action: AuditAction.CREATE,
-      entityType: 'SUSU_PLAN',
+      entityType: "SUSU_PLAN",
       entityId: susuPlan.id,
       changes: data,
     });
 
-    console.log('✅ Susu plan created:', susuPlan.name);
+    console.log("✅ Susu plan created:", susuPlan.name);
 
     return susuPlan;
   }
 
-  async getAll(companyId: string, query: IPaginationQuery) {
+  async getAll(companyId: string | null, query: IPaginationQuery) {
     const { page, limit, skip, sortBy, sortOrder } =
       PaginationUtil.getPaginationParams(query);
 
-    const where: any = { companyId };
+    const where: any = {};
 
-    console.log('Susu plans query:', { companyId, query });
+    console.log("Susu plans query:", { companyId, query });
+
+    // ✅ FIX: Only set companyId if not SUPER_ADMIN
+    if (companyId !== null) {
+      where.companyId = companyId;
+    }
 
     if (query.search) {
       where.OR = [
-        { name: { contains: query.search, mode: 'insensitive' } },
-        { description: { contains: query.search, mode: 'insensitive' } },
+        { name: { contains: query.search, mode: "insensitive" } },
+        { description: { contains: query.search, mode: "insensitive" } },
       ];
     }
 
@@ -88,7 +97,7 @@ export class SusuPlansService {
       where.isActive = query.isActive;
     }
 
-    console.log('Final where clause:', JSON.stringify(where, null, 2));
+    console.log("Final where clause:", JSON.stringify(where, null, 2));
 
     const [susuPlans, total] = await Promise.all([
       prisma.susuPlan.findMany({
@@ -107,7 +116,9 @@ export class SusuPlansService {
       prisma.susuPlan.count({ where }),
     ]);
 
-    console.log(`✅ Found ${susuPlans.length} susu plans out of ${total} total`);
+    console.log(
+      `✅ Found ${susuPlans.length} susu plans out of ${total} total`
+    );
 
     return PaginationUtil.formatPaginationResult(susuPlans, total, page, limit);
   }
@@ -125,7 +136,7 @@ export class SusuPlansService {
     });
 
     if (!susuPlan) {
-      throw new Error('Susu plan not found');
+      throw new Error("Susu plan not found");
     }
 
     return susuPlan;
@@ -151,23 +162,27 @@ export class SusuPlansService {
     });
 
     if (!susuPlan) {
-      throw new Error('Susu plan not found');
+      throw new Error("Susu plan not found");
     }
 
     // Validate type-specific requirements if type is being updated
     const newType = data.type || susuPlan.type;
-    
+
     if (newType === SusuPlanType.DURATION_BASED) {
-      const newDuration = data.duration !== undefined ? data.duration : susuPlan.duration;
+      const newDuration =
+        data.duration !== undefined ? data.duration : susuPlan.duration;
       if (!newDuration) {
-        throw new Error('Duration is required for duration-based plans');
+        throw new Error("Duration is required for duration-based plans");
       }
     }
 
     if (newType === SusuPlanType.TARGET_SAVINGS) {
-      const newTargetAmount = data.targetAmount !== undefined ? data.targetAmount : susuPlan.targetAmount;
+      const newTargetAmount =
+        data.targetAmount !== undefined
+          ? data.targetAmount
+          : susuPlan.targetAmount;
       if (!newTargetAmount) {
-        throw new Error('Target amount is required for target savings plans');
+        throw new Error("Target amount is required for target savings plans");
       }
     }
 
@@ -187,12 +202,12 @@ export class SusuPlansService {
       companyId,
       userId: updatedBy,
       action: AuditAction.UPDATE,
-      entityType: 'SUSU_PLAN',
+      entityType: "SUSU_PLAN",
       entityId: id,
       changes: data,
     });
 
-    console.log('✅ Susu plan updated successfully');
+    console.log("✅ Susu plan updated successfully");
 
     return updated;
   }
@@ -210,7 +225,7 @@ export class SusuPlansService {
     });
 
     if (!susuPlan) {
-      throw new Error('Susu plan not found');
+      throw new Error("Susu plan not found");
     }
 
     if (susuPlan._count.susuAccounts > 0) {
@@ -225,13 +240,13 @@ export class SusuPlansService {
       companyId,
       userId: deletedBy,
       action: AuditAction.DELETE,
-      entityType: 'SUSU_PLAN',
+      entityType: "SUSU_PLAN",
       entityId: id,
     });
 
-    console.log('✅ Susu plan deleted successfully');
+    console.log("✅ Susu plan deleted successfully");
 
-    return { message: 'Susu plan deleted successfully' };
+    return { message: "Susu plan deleted successfully" };
   }
 
   async uploadImage(
@@ -245,7 +260,7 @@ export class SusuPlansService {
     });
 
     if (!susuPlan) {
-      throw new Error('Susu plan not found');
+      throw new Error("Susu plan not found");
     }
 
     // Delete old image if exists
@@ -254,7 +269,7 @@ export class SusuPlansService {
         const publicId = FileUploadUtil.extractPublicId(susuPlan.imageUrl);
         await FileUploadUtil.deleteImage(publicId);
       } catch (error) {
-        console.warn('Failed to delete old image:', error);
+        console.warn("Failed to delete old image:", error);
         // Continue with upload even if deletion fails
       }
     }
@@ -281,12 +296,12 @@ export class SusuPlansService {
       companyId,
       userId: uploadedBy,
       action: AuditAction.UPDATE,
-      entityType: 'SUSU_PLAN',
+      entityType: "SUSU_PLAN",
       entityId: id,
       changes: { imageUrl: url },
     });
 
-    console.log('✅ Susu plan image uploaded successfully');
+    console.log("✅ Susu plan image uploaded successfully");
 
     return updated;
   }

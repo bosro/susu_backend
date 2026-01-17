@@ -18,7 +18,7 @@ router.use(
 
 router.post(
   '/',
-  AuthMiddleware.authorize(UserRole.COMPANY_ADMIN, UserRole.AGENT),
+  AuthMiddleware.authorize(UserRole.SUPER_ADMIN, UserRole.COMPANY_ADMIN, UserRole.AGENT), // ✅ Added SUPER_ADMIN
   TenantMiddleware.validateBranchAccess,
   ValidationMiddleware.validate(collectionsValidation.create),
   collectionsController.create
@@ -44,7 +44,7 @@ router.get(
 
 router.patch(
   '/:id',
-  AuthMiddleware.authorize(UserRole.COMPANY_ADMIN),
+  AuthMiddleware.authorize(UserRole.SUPER_ADMIN, UserRole.COMPANY_ADMIN), // ✅ Added SUPER_ADMIN
   ValidationMiddleware.validateParams(collectionsValidation.params),
   ValidationMiddleware.validate(collectionsValidation.update),
   collectionsController.update
@@ -52,7 +52,7 @@ router.patch(
 
 router.delete(
   '/:id',
-  AuthMiddleware.authorize(UserRole.COMPANY_ADMIN),
+  AuthMiddleware.authorize(UserRole.SUPER_ADMIN, UserRole.COMPANY_ADMIN), // ✅ Added SUPER_ADMIN
   ValidationMiddleware.validateParams(collectionsValidation.params),
   collectionsController.delete
 );
