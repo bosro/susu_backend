@@ -1,10 +1,15 @@
 // src/modules/collections/collections.service.ts
-import { prisma } from '../../config/database';
-import { PaginationUtil } from '../../utils/pagination.util';
-import { AuditLogUtil } from '../../utils/audit-log.util';
-import { AccountNumberUtil } from '../../utils/account-number.util';
-import { AuditAction, UserRole, CollectionStatus, TransactionType } from '../../types/enums';
-import { IPaginationQuery } from '../../types/interfaces';
+import { prisma } from "../../config/database";
+import { PaginationUtil } from "../../utils/pagination.util";
+import { AuditLogUtil } from "../../utils/audit-log.util";
+import { AccountNumberUtil } from "../../utils/account-number.util";
+import {
+  AuditAction,
+  UserRole,
+  CollectionStatus,
+  TransactionType,
+} from "../../types/enums";
+import { IPaginationQuery } from "../../types/interfaces";
 
 export class CollectionsService {
   async create(
@@ -29,7 +34,7 @@ export class CollectionsService {
     });
 
     if (!customer) {
-      throw new Error('Customer not found');
+      throw new Error("Customer not found");
     }
 
     // Validate susu account
@@ -41,11 +46,11 @@ export class CollectionsService {
     });
 
     if (!susuAccount) {
-      throw new Error('Susu account not found');
+      throw new Error("Susu account not found");
     }
 
     if (!susuAccount.isActive) {
-      throw new Error('Susu account is not active');
+      throw new Error("Susu account is not active");
     }
 
     const collection = await prisma.$transaction(async (tx) => {
@@ -108,7 +113,7 @@ export class CollectionsService {
             amount: data.amount,
             balanceBefore: susuAccount.balance,
             balanceAfter: newBalance,
-            reference: AccountNumberUtil.generateReference('COL'),
+            reference: AccountNumberUtil.generateReference("COL"),
             description: `Collection from ${customer.firstName} ${customer.lastName}`,
           },
         });
@@ -121,7 +126,7 @@ export class CollectionsService {
       companyId,
       userId: agentId,
       action: AuditAction.CREATE,
-      entityType: 'COLLECTION',
+      entityType: "COLLECTION",
       entityId: collection.id,
       changes: data,
     });
@@ -129,102 +134,133 @@ export class CollectionsService {
     return collection;
   }
 
-  async getAll(
-    companyId: string,
-    query: IPaginationQuery,
-    userRole: UserRole,
-    agentId?: string,
-    branchId?: string
-  ) {
-    const { page, limit, skip, sortBy, sortOrder } =
-      PaginationUtil.getPaginationParams(query);
+async getAll(
+  companyId: string,
+  query: IPaginationQuery,
+  userRole: UserRole,
+  userId?: string,
+  userBranchId?: string
+) {
+  const { page, limit, skip, sortBy, sortOrder } =
+    PaginationUtil.getPaginationParams(query);
 
-    const where: any = { companyId };
+  const where: any = { companyId };
 
-    // Agents can only see their own collections
-    if (userRole === UserRole.AGENT && agentId) {
-      where.agentId = agentId;
-    } else if (query.agentId) {
-      where.agentId = query.agentId;
+  console.log('Collections query:', {
+    companyId,
+    userRole,
+    userId,
+    userBranchId,
+    queryParams: query
+  });
+
+  // ✅ CRITICAL: Role-based data scoping
+  if (userRole === UserRole.AGENT) {
+    // Agents can ONLY see their own collections
+    where.agentId = userId;
+    
+    // Also restrict to their branch
+    if (userBranchId) {
+      where.branchId = userBranchId;
     }
-
-    // Filter by branch if provided
+    
+    console.log('✅ Agent scope applied - filtered to agentId:', userId);
+  } else if (userRole === UserRole.COMPANY_ADMIN) {
+    // Company admins see all collections in their company
+    // But can optionally filter
     if (query.branchId) {
       where.branchId = query.branchId;
-    } else if (userRole === UserRole.AGENT && branchId) {
-      where.branchId = branchId;
     }
-
-    if (query.customerId) {
-      where.customerId = query.customerId;
+    if (query.agentId) {
+      where.agentId = query.agentId;
     }
+    
+    console.log('✅ Company admin scope - can see all company data');
+  }
+  // SUPER_ADMIN sees everything with no additional restrictions
 
-    if (query.status) {
-      where.status = query.status;
+  // Additional filters (applied to all roles within their scope)
+  if (query.customerId) {
+    where.customerId = query.customerId;
+  }
+
+  if (query.status) {
+    where.status = query.status;
+  }
+
+  if (query.startDate || query.endDate) {
+    where.collectionDate = {};
+    if (query.startDate) {
+      where.collectionDate.gte = new Date(query.startDate);
     }
-
-    if (query.startDate || query.endDate) {
-      where.collectionDate = {};
-      if (query.startDate) {
-        where.collectionDate.gte = new Date(query.startDate);
-      }
-      if (query.endDate) {
-        where.collectionDate.lte = new Date(query.endDate);
-      }
+    if (query.endDate) {
+      where.collectionDate.lte = new Date(query.endDate);
     }
+  }
 
-    if (query.search) {
-      where.customer = {
-        OR: [
-          { firstName: { contains: query.search, mode: 'insensitive' } },
-          { lastName: { contains: query.search, mode: 'insensitive' } },
-          { phone: { contains: query.search, mode: 'insensitive' } },
-        ],
-      };
-    }
+  if (query.search) {
+    where.customer = {
+      OR: [
+        { firstName: { contains: query.search, mode: 'insensitive' } },
+        { lastName: { contains: query.search, mode: 'insensitive' } },
+        { phone: { contains: query.search, mode: 'insensitive' } },
+      ],
+    };
+  }
 
-    const [collections, total] = await Promise.all([
-      prisma.collection.findMany({
-        where,
-        skip,
-        take: limit,
-        orderBy: { [sortBy]: sortOrder },
-        include: {
-          customer: {
-            select: {
-              id: true,
-              firstName: true,
-              lastName: true,
-              phone: true,
-            },
+  console.log('Final where clause:', JSON.stringify(where, null, 2));
+
+  const [collections, total] = await Promise.all([
+    prisma.collection.findMany({
+      where,
+      skip,
+      take: limit,
+      orderBy: { [sortBy]: sortOrder },
+      include: {
+        customer: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            phone: true,
           },
-          susuAccount: {
-            select: {
-              id: true,
-              accountNumber: true,
-              balance: true,
-            },
-          },
-          agent: {
-            select: {
-              id: true,
-              firstName: true,
-              lastName: true,
-            },
-          },
-          branch: {
-            select: {
-              id: true,
-              name: true,
+        },
+        susuAccount: {
+          select: {
+            id: true,
+            accountNumber: true,
+            balance: true,
+            susuPlan: {
+              select: {
+                id: true,
+                name: true,
+                type: true,
+              },
             },
           },
         },
-      }),
-      prisma.collection.count({ where }),
-    ]);
+        agent: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+          },
+        },
+        branch: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
+    }),
+    prisma.collection.count({ where }),
+  ]);
 
-    return PaginationUtil.formatPaginationResult(collections, total, page, limit);
-  }
+  console.log(`✅ Found ${collections.length} collections out of ${total} total`);
+
+  return PaginationUtil.formatPaginationResult(collections, total, page, limit);
+}
 
   async getById(
     id: string,
@@ -286,7 +322,7 @@ export class CollectionsService {
     });
 
     if (!collection) {
-      throw new Error('Collection not found');
+      throw new Error("Collection not found");
     }
 
     return collection;
@@ -305,7 +341,7 @@ export class CollectionsService {
   ) {
     // Only company admin can update collections
     if (userRole !== UserRole.COMPANY_ADMIN) {
-      throw new Error('Only company admin can update collections');
+      throw new Error("Only company admin can update collections");
     }
 
     const collection = await prisma.collection.findFirst({
@@ -316,7 +352,7 @@ export class CollectionsService {
     });
 
     if (!collection) {
-      throw new Error('Collection not found');
+      throw new Error("Collection not found");
     }
 
     // If amount is changed, recalculate balance
@@ -345,7 +381,7 @@ export class CollectionsService {
       companyId,
       userId: updatedBy,
       action: AuditAction.UPDATE,
-      entityType: 'COLLECTION',
+      entityType: "COLLECTION",
       entityId: id,
       changes: data,
     });
@@ -361,7 +397,7 @@ export class CollectionsService {
   ) {
     // Only company admin can delete collections
     if (userRole !== UserRole.COMPANY_ADMIN) {
-      throw new Error('Only company admin can delete collections');
+      throw new Error("Only company admin can delete collections");
     }
 
     const collection = await prisma.collection.findFirst({
@@ -372,12 +408,14 @@ export class CollectionsService {
     });
 
     if (!collection) {
-      throw new Error('Collection not found');
+      throw new Error("Collection not found");
     }
 
     // Reverse the balance change
     if (collection.status !== CollectionStatus.MISSED) {
-      const newBalance = collection.susuAccount.balance.toNumber() - collection.amount.toNumber();
+      const newBalance =
+        collection.susuAccount.balance.toNumber() -
+        collection.amount.toNumber();
 
       await prisma.$transaction([
         prisma.collection.delete({ where: { id } }),
@@ -394,11 +432,11 @@ export class CollectionsService {
       companyId,
       userId: deletedBy,
       action: AuditAction.DELETE,
-      entityType: 'COLLECTION',
+      entityType: "COLLECTION",
       entityId: id,
     });
 
-    return { message: 'Collection deleted successfully' };
+    return { message: "Collection deleted successfully" };
   }
 
   async getStats(
@@ -468,9 +506,10 @@ export class CollectionsService {
         amount: partial._sum.amount || 0,
         count: partial._count,
       },
-      collectionRate: total._count > 0 
-        ? ((collected._count / total._count) * 100).toFixed(2) 
-        : 0,
+      collectionRate:
+        total._count > 0
+          ? ((collected._count / total._count) * 100).toFixed(2)
+          : 0,
     };
   }
 }

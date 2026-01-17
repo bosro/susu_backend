@@ -7,6 +7,25 @@ import { UserRole, CompanyStatus, AuditAction } from '../../types/enums';
 import { ITokenPayload } from '../../types/interfaces';
 
 export class AuthService {
+
+  async cleanupExpiredTokens(): Promise<number> {
+  try {
+    const result = await prisma.refreshToken.deleteMany({
+      where: {
+        expiresAt: {
+          lt: new Date()
+        }
+      }
+    });
+
+    console.log(`✅ Cleaned up ${result.count} expired refresh tokens`);
+    return result.count;
+  } catch (error) {
+    console.error('❌ Token cleanup failed:', error);
+    return 0;
+  }
+}
+
   async register(data: {
     email: string;
     password: string;

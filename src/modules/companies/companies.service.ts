@@ -7,58 +7,62 @@ import { CompanyStatus, AuditAction } from '../../types/enums';
 import { IPaginationQuery } from '../../types/interfaces';
 
 export class CompaniesService {
-  async getAll(query: IPaginationQuery, userId: string) {
-  const { page, limit, skip, sortBy, sortOrder } =
-    PaginationUtil.getPaginationParams(query);
+  async getAll(query: IPaginationQuery, _userId: string) {
+    const { page, limit, skip, sortBy, sortOrder } =
+      PaginationUtil.getPaginationParams(query);
 
-  const where: any = {};
+    const where: any = {};
 
-  if (query.search) {
-    where.OR = [
-      { name: { contains: query.search, mode: 'insensitive' } },
-      { email: { contains: query.search, mode: 'insensitive' } },
-    ];
-  }
+    if (query.search) {
+      where.OR = [
+        { name: { contains: query.search, mode: 'insensitive' } },
+        { email: { contains: query.search, mode: 'insensitive' } },
+      ];
+    }
 
-  if (query.status) {
-    where.status = query.status;
-  }
+    if (query.status) {
+      where.status = query.status;
+    }
 
-  // Example: scope companies by userId (if needed)
-  where.userId = userId;
+    // ❌ REMOVED THIS BUG - Don't filter by userId
+    // where.userId = userId;
 
-  const [companies, total] = await Promise.all([
-    prisma.company.findMany({
-      where,
-      skip,
-      take: limit,
-      orderBy: { [sortBy]: sortOrder },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        phone: true,
-        address: true,
-        logo: true,
-        primaryColor: true,
-        secondaryColor: true,
-        status: true,
-        createdAt: true,
-        updatedAt: true,
-        _count: {
-          select: {
-            users: true,
-            branches: true,
-            customers: true,
+    // ✅ The middleware and route guards handle authorization
+    // Super admins see all companies
+    // Company admins/agents are handled by route restrictions
+
+    const [companies, total] = await Promise.all([
+      prisma.company.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { [sortBy]: sortOrder },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          phone: true,
+          address: true,
+          logo: true,
+          primaryColor: true,
+          secondaryColor: true,
+          status: true,
+          createdAt: true,
+          updatedAt: true,
+          _count: {
+            select: {
+              users: true,
+              branches: true,
+              customers: true,
+            },
           },
         },
-      },
-    }),
-    prisma.company.count({ where }),
-  ]);
+      }),
+      prisma.company.count({ where }),
+    ]);
 
-  return PaginationUtil.formatPaginationResult(companies, total, page, limit);
-}
+    return PaginationUtil.formatPaginationResult(companies, total, page, limit);
+  }
 
   async getById(id: string) {
     const company = await prisma.company.findUnique({

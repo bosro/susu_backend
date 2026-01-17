@@ -5,6 +5,7 @@ import { ValidationMiddleware } from '../../middleware/validation.middleware';
 import { AuthMiddleware } from '../../middleware/auth.middleware';
 import { authValidation } from './auth.validation';
 import { authRateLimiter } from '../../middleware/rate-limit.middleware';
+import { UserRole } from '../../types/enums';
 
 const router = Router();
 const authController = new AuthController();
@@ -54,6 +55,13 @@ router.patch(
   '/profile',
   AuthMiddleware.authenticate,
   authController.updateProfile
+);
+
+router.post(
+  '/cleanup-tokens',
+  AuthMiddleware.authenticate,
+  AuthMiddleware.authorize(UserRole.SUPER_ADMIN),
+  authController.cleanupTokens
 );
 
 export default router;

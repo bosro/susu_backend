@@ -1,6 +1,6 @@
 // src/types/interfaces.ts
-import { Request } from "express";
-import { UserRole } from "./enums";
+import { Request } from 'express';
+import { UserRole } from './enums';
 
 export interface IUser {
   id: string;
@@ -14,10 +14,9 @@ export interface IUser {
 
 export interface IAuthRequest extends Request {
   user?: IUser;
-  companyId?: string; // add this
-  branchId?: string; 
+  companyId?: string; // ✅ For easy access in controllers
+  branchId?: string; // ✅ For easy access in controllers
 }
-
 
 export interface ITokenPayload {
   userId: string;
@@ -31,7 +30,7 @@ export interface IPaginationQuery {
   page?: number;
   limit?: number;
   sortBy?: string;
-  sortOrder?: "asc" | "desc";
+  sortOrder?: 'asc' | 'desc';
   search?: string;
   role?: string;
   branchId?: string;
@@ -45,6 +44,7 @@ export interface IPaginationQuery {
   startDate?: Date;
   endDate?: Date;
   status?: string;
+  companyId?: string; // ✅ Added for filtering
 }
 
 export interface IPaginationResult<T> {
@@ -90,4 +90,30 @@ export interface IFileUpload {
   mimetype: string;
   buffer: Buffer;
   size: number;
+}
+
+// ✅ Additional useful interfaces
+
+export interface ICompanyContext {
+  companyId: string;
+  companyName?: string;
+  companyStatus?: string;
+}
+
+export interface IBranchContext {
+  branchId: string;
+  branchName?: string;
+}
+
+export interface IUserContext {
+  userId: string;
+  role: UserRole;
+  permissions?: string[];
+}
+
+// ✅ Request with full context
+export interface IContextualRequest extends IAuthRequest {
+  companyContext?: ICompanyContext;
+  branchContext?: IBranchContext;
+  userContext?: IUserContext;
 }

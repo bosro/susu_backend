@@ -34,24 +34,37 @@ export class CollectionsController {
   };
 
   getAll = async (
-    req: IAuthRequest,
-    res: Response,
-    next: NextFunction
-  ): Promise<void> => {
-    try {
-      const companyId = req.user!.companyId!;
-      const result = await this.collectionsService.getAll(
-        companyId,
-        req.query,
-        req.user!.role,
-        req.user!.id,
-        req.user!.branchId || undefined
-      );
-      ResponseUtil.success(res, result, 'Collections retrieved successfully');
-    } catch (error: any) {
-      next(error);
-    }
-  };
+  req: IAuthRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const companyId = req.user!.companyId!;
+    const userRole = req.user!.role;
+    const userId = req.user!.id;
+    const userBranchId = req.user!.branchId || undefined;
+
+    console.log('Collections controller - getAll:', {
+      companyId,
+      userRole,
+      userId,
+      userBranchId,
+      query: req.query
+    });
+
+    const result = await this.collectionsService.getAll(
+      companyId,
+      req.query,
+      userRole,
+      userId,
+      userBranchId
+    );
+
+    ResponseUtil.success(res, result, 'Collections retrieved successfully');
+  } catch (error: any) {
+    next(error);
+  }
+};
 
   getById = async (
     req: IAuthRequest,
@@ -125,3 +138,4 @@ export class CollectionsController {
     }
   };
 }
+
