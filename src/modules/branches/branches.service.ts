@@ -37,6 +37,12 @@ export class BranchesService {
         phone: data.phone,
       },
       include: {
+        company: {  // ✅ Include company info for super admin
+          select: {
+            id: true,
+            name: true,
+          },
+        },
         _count: {
           select: {
             agents: true,
@@ -66,7 +72,7 @@ export class BranchesService {
 
     const where: any = {};
 
-    // ✅ FIX: Only set companyId if not SUPER_ADMIN
+    // ✅ Only set companyId if not SUPER_ADMIN
     if (companyId !== null) {
       where.companyId = companyId;
     }
@@ -93,6 +99,13 @@ export class BranchesService {
         take: limit,
         orderBy: { [sortBy]: sortOrder },
         include: {
+          company: {  // ✅ Include company info for super admin
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            },
+          },
           _count: {
             select: {
               agents: true,
@@ -110,10 +123,26 @@ export class BranchesService {
     return PaginationUtil.formatPaginationResult(branches, total, page, limit);
   }
 
-  async getById(id: string, companyId: string) {
+  async getById(id: string, companyId: string | null) {
+    const where: any = { id };
+
+    // ✅ Only filter by companyId if not SUPER_ADMIN
+    if (companyId !== null) {
+      where.companyId = companyId;
+    }
+
     const branch = await prisma.branch.findFirst({
-      where: { id, companyId },
+      where,
       include: {
+        company: {  // ✅ Include company info
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            phone: true,
+            address: true,
+          },
+        },
         _count: {
           select: {
             agents: true,
@@ -147,7 +176,7 @@ export class BranchesService {
 
   async update(
     id: string,
-    companyId: string,
+    companyId: string | null,  // ✅ Can be null for SUPER_ADMIN
     data: {
       name?: string;
       address?: string;
@@ -156,8 +185,13 @@ export class BranchesService {
     },
     updatedBy: string
   ) {
+    const where: any = { id };
+    if (companyId !== null) {
+      where.companyId = companyId;
+    }
+
     const branch = await prisma.branch.findFirst({
-      where: { id, companyId },
+      where,
     });
 
     if (!branch) {
@@ -166,12 +200,16 @@ export class BranchesService {
 
     // Check if name is being changed and if it's already in use
     if (data.name && data.name !== branch.name) {
+      const existingWhere: any = {
+        name: data.name,
+        id: { not: id },
+      };
+
+      // Only check within the same company
+      existingWhere.companyId = branch.companyId;
+
       const existingBranch = await prisma.branch.findFirst({
-        where: {
-          companyId,
-          name: data.name,
-          id: { not: id },
-        },
+        where: existingWhere,
       });
 
       if (existingBranch) {
@@ -183,6 +221,12 @@ export class BranchesService {
       where: { id },
       data,
       include: {
+        company: {  // ✅ Include company info
+          select: {
+            id: true,
+            name: true,
+          },
+        },
         _count: {
           select: {
             agents: true,
@@ -193,7 +237,7 @@ export class BranchesService {
     });
 
     await AuditLogUtil.log({
-      companyId,
+      companyId: branch.companyId,  // ✅ Use branch's actual companyId
       userId: updatedBy,
       action: AuditAction.UPDATE,
       entityType: "BRANCH",
@@ -206,9 +250,14 @@ export class BranchesService {
     return updated;
   }
 
-  async delete(id: string, companyId: string, deletedBy: string) {
+  async delete(id: string, companyId: string | null, deletedBy: string) {
+    const where: any = { id };
+    if (companyId !== null) {
+      where.companyId = companyId;
+    }
+
     const branch = await prisma.branch.findFirst({
-      where: { id, companyId },
+      where,
       include: {
         _count: {
           select: {
@@ -232,7 +281,7 @@ export class BranchesService {
     await prisma.branch.delete({ where: { id } });
 
     await AuditLogUtil.log({
-      companyId,
+      companyId: branch.companyId,  // ✅ Use branch's actual companyId
       userId: deletedBy,
       action: AuditAction.DELETE,
       entityType: "BRANCH",
@@ -244,9 +293,14 @@ export class BranchesService {
     return { message: "Branch deleted successfully" };
   }
 
-  async getStats(id: string, companyId: string) {
+  async getStats(id: string, companyId: string | null) {
+    const where: any = { id };
+    if (companyId !== null) {
+      where.companyId = companyId;
+    }
+
     const branch = await prisma.branch.findFirst({
-      where: { id, companyId },
+      where,
     });
 
     if (!branch) {

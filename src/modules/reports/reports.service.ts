@@ -1,10 +1,10 @@
 // src/modules/reports/reports.service.ts
 import { prisma } from '../../config/database';
-import { CollectionStatus,  } from '../../types/enums';
+import { CollectionStatus } from '../../types/enums';
 
 export class ReportsService {
   async getCollectionReport(
-    companyId: string,
+    companyId: string | null, // ✅ Allow null for SUPER_ADMIN
     filters: {
       startDate: Date;
       endDate: Date;
@@ -14,12 +14,16 @@ export class ReportsService {
     }
   ) {
     const where: any = {
-      companyId,
       collectionDate: {
         gte: filters.startDate,
         lte: filters.endDate,
       },
     };
+
+    // ✅ Only filter by companyId if not SUPER_ADMIN
+    if (companyId !== null) {
+      where.companyId = companyId;
+    }
 
     if (filters.branchId) {
       where.branchId = filters.branchId;
@@ -105,7 +109,7 @@ export class ReportsService {
   }
 
   async getAgentPerformanceReport(
-    companyId: string,
+    companyId: string | null, // ✅ Allow null for SUPER_ADMIN
     filters: {
       startDate: Date;
       endDate: Date;
@@ -113,12 +117,16 @@ export class ReportsService {
     }
   ) {
     const where: any = {
-      companyId,
       collectionDate: {
         gte: filters.startDate,
         lte: filters.endDate,
       },
     };
+
+    // ✅ Only filter by companyId if not SUPER_ADMIN
+    if (companyId !== null) {
+      where.companyId = companyId;
+    }
 
     if (filters.branchId) {
       where.branchId = filters.branchId;
@@ -197,7 +205,7 @@ export class ReportsService {
   }
 
   async getCustomerReport(
-    companyId: string,
+    companyId: string | null, // ✅ Allow null for SUPER_ADMIN
     filters: {
       startDate: Date;
       endDate: Date;
@@ -206,7 +214,6 @@ export class ReportsService {
     }
   ) {
     const where: any = {
-      companyId,
       collections: {
         some: {
           collectionDate: {
@@ -216,6 +223,11 @@ export class ReportsService {
         },
       },
     };
+
+    // ✅ Only filter by companyId if not SUPER_ADMIN
+    if (companyId !== null) {
+      where.companyId = companyId;
+    }
 
     if (filters.branchId) {
       where.branchId = filters.branchId;
@@ -315,14 +327,21 @@ export class ReportsService {
   }
 
   async getBranchReport(
-    companyId: string,
+    companyId: string | null, // ✅ Allow null for SUPER_ADMIN
     filters: {
       startDate: Date;
       endDate: Date;
     }
   ) {
+    const branchWhere: any = { isActive: true };
+    
+    // ✅ Only filter by companyId if not SUPER_ADMIN
+    if (companyId !== null) {
+      branchWhere.companyId = companyId;
+    }
+
     const branches = await prisma.branch.findMany({
-      where: { companyId, isActive: true },
+      where: branchWhere,
       include: {
         _count: {
           select: {
@@ -393,7 +412,7 @@ export class ReportsService {
   }
 
   async getFinancialSummary(
-    companyId: string,
+    companyId: string | null, // ✅ Allow null for SUPER_ADMIN
     filters: {
       startDate: Date;
       endDate: Date;
@@ -401,15 +420,41 @@ export class ReportsService {
     }
   ) {
     const where: any = {
-      companyId,
       collectionDate: {
         gte: filters.startDate,
         lte: filters.endDate,
       },
     };
 
+    // ✅ Only filter by companyId if not SUPER_ADMIN
+    if (companyId !== null) {
+      where.companyId = companyId;
+    }
+
     if (filters.branchId) {
       where.branchId = filters.branchId;
+    }
+
+    // Build where clause for transactions
+    const transactionWhere: any = {
+      type: 'WITHDRAWAL',
+      createdAt: {
+        gte: filters.startDate,
+        lte: filters.endDate,
+      },
+    };
+
+    // Build where clause for susuAccount balance
+    const accountWhere: any = {
+      isActive: true,
+    };
+
+    // ✅ Only add nested company filter if companyId is provided
+    if (companyId !== null) {
+      transactionWhere.susuAccount = {
+        customer: { companyId },
+      };
+      accountWhere.customer = { companyId };
     }
 
     const [collections, withdrawals, totalBalance] = await Promise.all([
@@ -419,24 +464,12 @@ export class ReportsService {
         _count: true,
       }),
       prisma.transaction.aggregate({
-        where: {
-          type: 'WITHDRAWAL',
-          createdAt: {
-            gte: filters.startDate,
-            lte: filters.endDate,
-          },
-          susuAccount: {
-            customer: { companyId },
-          },
-        },
+        where: transactionWhere,
         _sum: { amount: true },
         _count: true,
       }),
       prisma.susuAccount.aggregate({
-        where: {
-          customer: { companyId },
-          isActive: true,
-        },
+        where: accountWhere,
         _sum: { balance: true },
       }),
     ]);

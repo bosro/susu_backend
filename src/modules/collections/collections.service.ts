@@ -165,7 +165,7 @@ export class CollectionsService {
   }
 
   async getAll(
-    companyId: string | null,
+    companyId: string | null,  // ✅ Can be null for SUPER_ADMIN
     query: IPaginationQuery & {
       customerId?: string;
       susuAccountId?: string;
@@ -192,12 +192,12 @@ export class CollectionsService {
       queryParams: query,
     });
 
-    // ✅ FIX: Only set companyId if not SUPER_ADMIN
+    // ✅ Only set companyId if not SUPER_ADMIN
     if (companyId !== null) {
       where.companyId = companyId;
     }
 
-    // ✅ CRITICAL: Role-based data scoping
+    // ✅ Role-based data scoping
     if (userRole === UserRole.AGENT) {
       if (!userId) {
         console.warn("❌ Agent has no user ID");
@@ -297,6 +297,12 @@ export class CollectionsService {
             select: {
               id: true,
               name: true,
+              company: {  // ✅ Include company info for super admin
+                select: {
+                  id: true,
+                  name: true,
+                },
+              },
             },
           },
         },
@@ -315,13 +321,19 @@ export class CollectionsService {
       limit
     );
   }
+
   async getById(
     id: string,
-    companyId: string,
+    companyId: string | null,  // ✅ Can be null for SUPER_ADMIN
     userRole: UserRole,
     userId?: string
   ) {
-    const where: any = { id, companyId };
+    const where: any = { id };
+
+    // ✅ Only filter by companyId if not SUPER_ADMIN
+    if (companyId !== null) {
+      where.companyId = companyId;
+    }
 
     // ✅ Agents can only see their own collections
     if (userRole === UserRole.AGENT) {
@@ -384,6 +396,13 @@ export class CollectionsService {
             id: true,
             name: true,
             address: true,
+            company: {  // ✅ Include company info
+              select: {
+                id: true,
+                name: true,
+                email: true,
+              },
+            },
           },
         },
       },
@@ -398,7 +417,7 @@ export class CollectionsService {
 
   async update(
     id: string,
-    companyId: string,
+    companyId: string | null,  // ✅ Can be null for SUPER_ADMIN
     data: {
       amount?: number;
       status?: CollectionStatus;
@@ -415,8 +434,13 @@ export class CollectionsService {
       throw new Error("Only company admin can update collections");
     }
 
+    const where: any = { id };
+    if (companyId !== null) {
+      where.companyId = companyId;
+    }
+
     const collection = await prisma.collection.findFirst({
-      where: { id, companyId },
+      where,
       include: {
         susuAccount: true,
       },
@@ -465,7 +489,7 @@ export class CollectionsService {
     }
 
     await AuditLogUtil.log({
-      companyId,
+      companyId: collection.companyId,  // ✅ Use collection's actual companyId
       userId: updatedBy,
       action: AuditAction.UPDATE,
       entityType: "COLLECTION",
@@ -480,7 +504,7 @@ export class CollectionsService {
 
   async delete(
     id: string,
-    companyId: string,
+    companyId: string | null,  // ✅ Can be null for SUPER_ADMIN
     deletedBy: string,
     userRole: UserRole
   ) {
@@ -492,8 +516,13 @@ export class CollectionsService {
       throw new Error("Only company admin can delete collections");
     }
 
+    const where: any = { id };
+    if (companyId !== null) {
+      where.companyId = companyId;
+    }
+
     const collection = await prisma.collection.findFirst({
-      where: { id, companyId },
+      where,
       include: {
         susuAccount: true,
       },
@@ -532,7 +561,7 @@ export class CollectionsService {
     }
 
     await AuditLogUtil.log({
-      companyId,
+      companyId: collection.companyId,  // ✅ Use collection's actual companyId
       userId: deletedBy,
       action: AuditAction.DELETE,
       entityType: "COLLECTION",
@@ -545,81 +574,81 @@ export class CollectionsService {
   }
 
   async getStats(
-  companyId: string | null,  // ✅ Allow null for SUPER_ADMIN
-  filters: {
-    startDate?: Date;
-    endDate?: Date;
-    branchId?: string;
-    agentId?: string;
-  }
-) {
-  const where: any = {};
-
-  // ✅ Only set companyId if not null (SUPER_ADMIN can see all companies)
-  if (companyId !== null) {
-    where.companyId = companyId;
-  }
-
-  if (filters.branchId) {
-    where.branchId = filters.branchId;
-  }
-
-  if (filters.agentId) {
-    where.agentId = filters.agentId;
-  }
-
-  if (filters.startDate || filters.endDate) {
-    where.collectionDate = {};
-    if (filters.startDate) {
-      where.collectionDate.gte = filters.startDate;
+    companyId: string | null,  // ✅ Can be null for SUPER_ADMIN
+    filters: {
+      startDate?: Date;
+      endDate?: Date;
+      branchId?: string;
+      agentId?: string;
     }
-    if (filters.endDate) {
-      where.collectionDate.lte = filters.endDate;
+  ) {
+    const where: any = {};
+
+    // ✅ Only set companyId if not null (SUPER_ADMIN can see all companies)
+    if (companyId !== null) {
+      where.companyId = companyId;
     }
+
+    if (filters.branchId) {
+      where.branchId = filters.branchId;
+    }
+
+    if (filters.agentId) {
+      where.agentId = filters.agentId;
+    }
+
+    if (filters.startDate || filters.endDate) {
+      where.collectionDate = {};
+      if (filters.startDate) {
+        where.collectionDate.gte = filters.startDate;
+      }
+      if (filters.endDate) {
+        where.collectionDate.lte = filters.endDate;
+      }
+    }
+
+    const [total, collected, missed, partial] = await Promise.all([
+      prisma.collection.aggregate({
+        where,
+        _sum: { amount: true, expectedAmount: true },
+        _count: true,
+      }),
+      prisma.collection.aggregate({
+        where: { ...where, status: CollectionStatus.COLLECTED },
+        _sum: { amount: true },
+        _count: true,
+      }),
+      prisma.collection.count({
+        where: { ...where, status: CollectionStatus.MISSED },
+      }),
+      prisma.collection.aggregate({
+        where: { ...where, status: CollectionStatus.PARTIAL },
+        _sum: { amount: true },
+        _count: true,
+      }),
+    ]);
+
+    return {
+      total: {
+        amount: total._sum.amount || 0,
+        expectedAmount: total._sum.expectedAmount || 0,
+        count: total._count,
+      },
+      collected: {
+        amount: collected._sum.amount || 0,
+        count: collected._count,
+      },
+      missed: {
+        count: missed,
+      },
+      partial: {
+        amount: partial._sum.amount || 0,
+        count: partial._count,
+      },
+      collectionRate:
+        total._count > 0
+          ? ((collected._count / total._count) * 100).toFixed(2)
+          : "0",
+    };
   }
-
-  const [total, collected, missed, partial] = await Promise.all([
-    prisma.collection.aggregate({
-      where,
-      _sum: { amount: true, expectedAmount: true },
-      _count: true,
-    }),
-    prisma.collection.aggregate({
-      where: { ...where, status: CollectionStatus.COLLECTED },
-      _sum: { amount: true },
-      _count: true,
-    }),
-    prisma.collection.count({
-      where: { ...where, status: CollectionStatus.MISSED },
-    }),
-    prisma.collection.aggregate({
-      where: { ...where, status: CollectionStatus.PARTIAL },
-      _sum: { amount: true },
-      _count: true,
-    }),
-  ]);
-
-  return {
-    total: {
-      amount: total._sum.amount || 0,
-      expectedAmount: total._sum.expectedAmount || 0,
-      count: total._count,
-    },
-    collected: {
-      amount: collected._sum.amount || 0,
-      count: collected._count,
-    },
-    missed: {
-      count: missed,
-    },
-    partial: {
-      amount: partial._sum.amount || 0,
-      count: partial._count,
-    },
-    collectionRate:
-      total._count > 0
-        ? ((collected._count / total._count) * 100).toFixed(2)
-        : "0",
-  };
-}
 }

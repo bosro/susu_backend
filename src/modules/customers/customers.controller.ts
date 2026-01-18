@@ -35,7 +35,7 @@ export class CustomersController {
     next: NextFunction
   ): Promise<void> => {
     try {
-      const companyId = req.user!.companyId!;
+      const companyId = req.user!.companyId;  // ✅ Can be null for SUPER_ADMIN
       const result = await this.customersService.getAll(
         companyId,
         req.query,
@@ -54,7 +54,7 @@ export class CustomersController {
     next: NextFunction
   ): Promise<void> => {
     try {
-      const companyId = req.user!.companyId!;
+      const companyId = req.user!.companyId;  // ✅ Can be null for SUPER_ADMIN
       const customer = await this.customersService.getById(
         req.params.id,
         companyId,
@@ -73,7 +73,7 @@ export class CustomersController {
     next: NextFunction
   ): Promise<void> => {
     try {
-      const companyId = req.user!.companyId!;
+      const companyId = req.user!.companyId;  // ✅ Can be null for SUPER_ADMIN
       const customer = await this.customersService.update(
         req.params.id,
         companyId,
@@ -92,7 +92,7 @@ export class CustomersController {
     next: NextFunction
   ): Promise<void> => {
     try {
-      const companyId = req.user!.companyId!;
+      const companyId = req.user!.companyId;  // ✅ Can be null for SUPER_ADMIN
       const result = await this.customersService.delete(
         req.params.id,
         companyId,
@@ -115,7 +115,7 @@ export class CustomersController {
         return;
       }
 
-      const companyId = req.user!.companyId!;
+      const companyId = req.user!.companyId;  // ✅ Can be null for SUPER_ADMIN
       const customer = await this.customersService.uploadPhoto(
         req.params.id,
         companyId,
@@ -134,7 +134,7 @@ export class CustomersController {
     next: NextFunction
   ): Promise<void> => {
     try {
-      const companyId = req.user!.companyId!;
+      const companyId = req.user!.companyId;  // ✅ Can be null for SUPER_ADMIN
       const stats = await this.customersService.getCustomerStats(
         req.params.id,
         companyId
@@ -145,4 +145,3 @@ export class CustomersController {
     }
   };
 }
-

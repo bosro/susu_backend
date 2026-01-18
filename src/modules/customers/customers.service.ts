@@ -75,91 +75,102 @@ export class CustomersService {
   }
 
   async getAll(
-  companyId: string | null,
-  query: IPaginationQuery,
-  userRole: UserRole,
-  userBranchId?: string
-) {
-  const { page, limit, skip, sortBy, sortOrder } =
-    PaginationUtil.getPaginationParams(query);
+    companyId: string | null,
+    query: IPaginationQuery,
+    userRole: UserRole,
+    userBranchId?: string
+  ) {
+    const { page, limit, skip, sortBy, sortOrder } =
+      PaginationUtil.getPaginationParams(query);
 
-  const where: any = {};
+    const where: any = {};
 
-  console.log('Customers query:', {
-    companyId,
-    userRole,
-    userBranchId,
-    query,
-  });
+    console.log('Customers query:', {
+      companyId,
+      userRole,
+      userBranchId,
+      query,
+    });
 
-  // ✅ FIX: Only set companyId if not SUPER_ADMIN
-  if (companyId !== null) {
-    where.companyId = companyId;
-  }
+    // ✅ FIX: Only set companyId if not SUPER_ADMIN
+    if (companyId !== null) {
+      where.companyId = companyId;
+    }
 
-  // Role-based filtering
-  if (userRole === UserRole.AGENT && userBranchId) {
-    where.branchId = userBranchId;
-    console.log('✅ Agent scope applied - filtered to branchId:', userBranchId);
-  }
+    // Role-based filtering
+    if (userRole === UserRole.AGENT && userBranchId) {
+      where.branchId = userBranchId;
+      console.log('✅ Agent scope applied - filtered to branchId:', userBranchId);
+    }
 
-  // Additional filters
-  if (query.branchId) {
-    where.branchId = query.branchId;
-  }
+    // Additional filters
+    if (query.branchId) {
+      where.branchId = query.branchId;
+    }
 
-  if (query.isActive !== undefined) {
-    where.isActive = query.isActive;
-  }
+    if (query.isActive !== undefined) {
+      where.isActive = query.isActive;
+    }
 
-  if (query.search) {
-    where.OR = [
-      { firstName: { contains: query.search, mode: 'insensitive' } },
-      { lastName: { contains: query.search, mode: 'insensitive' } },
-      { phone: { contains: query.search, mode: 'insensitive' } },
-      { email: { contains: query.search, mode: 'insensitive' } },
-      { idNumber: { contains: query.search, mode: 'insensitive' } },
-    ];
-  }
+    if (query.search) {
+      where.OR = [
+        { firstName: { contains: query.search, mode: 'insensitive' } },
+        { lastName: { contains: query.search, mode: 'insensitive' } },
+        { phone: { contains: query.search, mode: 'insensitive' } },
+        { email: { contains: query.search, mode: 'insensitive' } },
+        { idNumber: { contains: query.search, mode: 'insensitive' } },
+      ];
+    }
 
-  console.log('Final where clause:', JSON.stringify(where, null, 2));
+    console.log('Final where clause:', JSON.stringify(where, null, 2));
 
-  const [customers, total] = await Promise.all([
-    prisma.customer.findMany({
-      where,
-      skip,
-      take: limit,
-      orderBy: { [sortBy]: sortOrder },
-      include: {
-        branch: {
-          select: {
-            id: true,
-            name: true,
+    const [customers, total] = await Promise.all([
+      prisma.customer.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { [sortBy]: sortOrder },
+        include: {
+          branch: {
+            select: {
+              id: true,
+              name: true,
+              company: {  // ✅ Include company info for super admin view
+                select: {
+                  id: true,
+                  name: true,
+                },
+              },
+            },
+          },
+          _count: {
+            select: {
+              susuAccounts: true,
+              collections: true,
+            },
           },
         },
-        _count: {
-          select: {
-            susuAccounts: true,
-            collections: true,
-          },
-        },
-      },
-    }),
-    prisma.customer.count({ where }),
-  ]);
+      }),
+      prisma.customer.count({ where }),
+    ]);
 
-  console.log(`✅ Found ${customers.length} customers out of ${total} total`);
+    console.log(`✅ Found ${customers.length} customers out of ${total} total`);
 
-  return PaginationUtil.formatPaginationResult(customers, total, page, limit);
-}
+    return PaginationUtil.formatPaginationResult(customers, total, page, limit);
+  }
 
   async getById(
     id: string,
-    companyId: string,
+    companyId: string | null,  // ✅ Now accepts null
     userRole: UserRole,
     branchId?: string
   ) {
-    const where: any = { id, companyId };
+    const where: any = { id };
+
+    // ✅ FIX: Only filter by companyId if not SUPER_ADMIN
+    if (companyId !== null) {
+      where.companyId = companyId;
+    }
 
     // ✅ Agents can only see customers in their branch
     if (userRole === UserRole.AGENT) {
@@ -170,6 +181,8 @@ export class CustomersService {
       console.log('✅ Agent accessing customer - filtered to branchId:', branchId);
     }
 
+    console.log('getById where clause:', JSON.stringify(where, null, 2));
+
     const customer = await prisma.customer.findFirst({
       where,
       include: {
@@ -178,6 +191,13 @@ export class CustomersService {
             id: true,
             name: true,
             address: true,
+            company: {  // ✅ Include company info for super admin view
+              select: {
+                id: true,
+                name: true,
+                email: true,
+              },
+            },
           },
         },
         susuAccounts: {
@@ -209,7 +229,7 @@ export class CustomersService {
 
   async update(
     id: string,
-    companyId: string,
+    companyId: string | null,  // ✅ Now accepts null
     data: {
       firstName?: string;
       lastName?: string;
@@ -222,9 +242,13 @@ export class CustomersService {
     },
     updatedBy: string
   ) {
-    const customer = await prisma.customer.findFirst({
-      where: { id, companyId },
-    });
+    // ✅ Build where clause conditionally
+    const where: any = { id };
+    if (companyId !== null) {
+      where.companyId = companyId;
+    }
+
+    const customer = await prisma.customer.findFirst({ where });
 
     if (!customer) {
       throw new Error('Customer not found');
@@ -233,7 +257,10 @@ export class CustomersService {
     // Validate branch if provided
     if (data.branchId && data.branchId !== customer.branchId) {
       const branch = await prisma.branch.findFirst({
-        where: { id: data.branchId, companyId },
+        where: { 
+          id: data.branchId, 
+          ...(companyId !== null ? { companyId } : {})  // ✅ Conditional companyId
+        },
       });
 
       if (!branch) {
@@ -243,12 +270,16 @@ export class CustomersService {
 
     // Check if phone is being changed and if it's already in use
     if (data.phone && data.phone !== customer.phone) {
+      const existingWhere: any = {
+        phone: data.phone,
+        id: { not: id },
+      };
+      if (companyId !== null) {
+        existingWhere.companyId = companyId;
+      }
+
       const existingCustomer = await prisma.customer.findFirst({
-        where: {
-          companyId,
-          phone: data.phone,
-          id: { not: id },
-        },
+        where: existingWhere,
       });
 
       if (existingCustomer) {
@@ -270,7 +301,7 @@ export class CustomersService {
     });
 
     await AuditLogUtil.log({
-      companyId,
+      companyId: customer.companyId,  // ✅ Use customer's companyId for audit
       userId: updatedBy,
       action: AuditAction.UPDATE,
       entityType: 'CUSTOMER',
@@ -281,9 +312,15 @@ export class CustomersService {
     return updated;
   }
 
-  async delete(id: string, companyId: string, deletedBy: string) {
+  async delete(id: string, companyId: string | null, deletedBy: string) {
+    // ✅ Build where clause conditionally
+    const where: any = { id };
+    if (companyId !== null) {
+      where.companyId = companyId;
+    }
+
     const customer = await prisma.customer.findFirst({
-      where: { id, companyId },
+      where,
       include: {
         _count: {
           select: {
@@ -314,7 +351,7 @@ export class CustomersService {
     await prisma.customer.delete({ where: { id } });
 
     await AuditLogUtil.log({
-      companyId,
+      companyId: customer.companyId,  // ✅ Use customer's companyId for audit
       userId: deletedBy,
       action: AuditAction.DELETE,
       entityType: 'CUSTOMER',
@@ -326,13 +363,17 @@ export class CustomersService {
 
   async uploadPhoto(
     id: string,
-    companyId: string,
+    companyId: string | null,  // ✅ Now accepts null
     file: Buffer,
     uploadedBy: string
   ) {
-    const customer = await prisma.customer.findFirst({
-      where: { id, companyId },
-    });
+    // ✅ Build where clause conditionally
+    const where: any = { id };
+    if (companyId !== null) {
+      where.companyId = companyId;
+    }
+
+    const customer = await prisma.customer.findFirst({ where });
 
     if (!customer) {
       throw new Error('Customer not found');
@@ -352,7 +393,7 @@ export class CustomersService {
     // Upload new photo
     const { url } = await FileUploadUtil.uploadImage(
       file,
-      `customers/${companyId}`
+      `customers/${customer.companyId}`  // ✅ Use customer's companyId
     );
 
     const updated = await prisma.customer.update({
@@ -369,7 +410,7 @@ export class CustomersService {
     });
 
     await AuditLogUtil.log({
-      companyId,
+      companyId: customer.companyId,  // ✅ Use customer's companyId for audit
       userId: uploadedBy,
       action: AuditAction.UPDATE,
       entityType: 'CUSTOMER',
@@ -380,10 +421,14 @@ export class CustomersService {
     return updated;
   }
 
-  async getCustomerStats(id: string, companyId: string) {
-    const customer = await prisma.customer.findFirst({
-      where: { id, companyId },
-    });
+  async getCustomerStats(id: string, companyId: string | null) {
+    // ✅ Build where clause conditionally
+    const where: any = { id };
+    if (companyId !== null) {
+      where.companyId = companyId;
+    }
+
+    const customer = await prisma.customer.findFirst({ where });
 
     if (!customer) {
       throw new Error('Customer not found');

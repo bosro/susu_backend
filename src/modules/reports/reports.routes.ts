@@ -16,37 +16,38 @@ router.use(
   TenantMiddleware.validateCompanyAccess
 );
 
+// ✅ FIX: Add SUPER_ADMIN to all report routes
 router.get(
   '/collections',
-  AuthMiddleware.authorize(UserRole.COMPANY_ADMIN),
+  AuthMiddleware.authorize(UserRole.SUPER_ADMIN, UserRole.COMPANY_ADMIN), // ✅ Added SUPER_ADMIN
   ValidationMiddleware.validateQuery(reportsValidation.query),
   reportsController.getCollectionReport
 );
 
 router.get(
   '/agent-performance',
-  AuthMiddleware.authorize(UserRole.COMPANY_ADMIN),
+  AuthMiddleware.authorize(UserRole.SUPER_ADMIN, UserRole.COMPANY_ADMIN), // ✅ Added SUPER_ADMIN
   ValidationMiddleware.validateQuery(reportsValidation.query),
   reportsController.getAgentPerformanceReport
 );
 
 router.get(
   '/customers',
-  AuthMiddleware.authorize(UserRole.COMPANY_ADMIN),
+  AuthMiddleware.authorize(UserRole.SUPER_ADMIN, UserRole.COMPANY_ADMIN), // ✅ Added SUPER_ADMIN
   ValidationMiddleware.validateQuery(reportsValidation.query),
   reportsController.getCustomerReport
 );
 
 router.get(
   '/branches',
-  AuthMiddleware.authorize(UserRole.COMPANY_ADMIN),
+  AuthMiddleware.authorize(UserRole.SUPER_ADMIN, UserRole.COMPANY_ADMIN), // ✅ Added SUPER_ADMIN
   ValidationMiddleware.validateQuery(reportsValidation.query),
   reportsController.getBranchReport
 );
 
 router.get(
   '/financial-summary',
-  AuthMiddleware.authorize(UserRole.COMPANY_ADMIN),
+  AuthMiddleware.authorize(UserRole.SUPER_ADMIN, UserRole.COMPANY_ADMIN), // ✅ Added SUPER_ADMIN
   ValidationMiddleware.validateQuery(reportsValidation.query),
   reportsController.getFinancialSummary
 );

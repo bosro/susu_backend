@@ -17,7 +17,14 @@ export class SusuAccountsController {
     next: NextFunction
   ): Promise<void> => {
     try {
-      const companyId = req.user!.companyId!;
+      // ✅ Super admin needs to specify companyId in request body
+      const companyId = req.user!.companyId || req.body.companyId;
+
+      if (!companyId) {
+        ResponseUtil.badRequest(res, 'Company ID is required');
+        return;
+      }
+
       const account = await this.susuAccountsService.create(
         companyId,
         req.body,
@@ -35,7 +42,7 @@ export class SusuAccountsController {
     next: NextFunction
   ): Promise<void> => {
     try {
-      const companyId = req.user!.companyId!;
+      const companyId = req.user!.companyId;  // ✅ Can be null for SUPER_ADMIN
       const result = await this.susuAccountsService.getAll(
         companyId,
         req.query,
@@ -54,7 +61,7 @@ export class SusuAccountsController {
     next: NextFunction
   ): Promise<void> => {
     try {
-      const companyId = req.user!.companyId!;
+      const companyId = req.user!.companyId;  // ✅ Can be null for SUPER_ADMIN
       const account = await this.susuAccountsService.getById(
         req.params.id,
         companyId,
@@ -73,7 +80,7 @@ export class SusuAccountsController {
     next: NextFunction
   ): Promise<void> => {
     try {
-      const companyId = req.user!.companyId!;
+      const companyId = req.user!.companyId;  // ✅ Can be null for SUPER_ADMIN
       const account = await this.susuAccountsService.update(
         req.params.id,
         companyId,
@@ -92,7 +99,7 @@ export class SusuAccountsController {
     next: NextFunction
   ): Promise<void> => {
     try {
-      const companyId = req.user!.companyId!;
+      const companyId = req.user!.companyId;  // ✅ Can be null for SUPER_ADMIN
       const result = await this.susuAccountsService.withdraw(
         req.params.id,
         companyId,
@@ -111,7 +118,7 @@ export class SusuAccountsController {
     next: NextFunction
   ): Promise<void> => {
     try {
-      const companyId = req.user!.companyId!;
+      const companyId = req.user!.companyId;  // ✅ Can be null for SUPER_ADMIN
       const result = await this.susuAccountsService.getTransactions(
         req.params.id,
         companyId,
@@ -123,4 +130,3 @@ export class SusuAccountsController {
     }
   };
 }
-

@@ -47,6 +47,12 @@ export class SusuPlansService {
         targetAmount: data.targetAmount,
       },
       include: {
+        company: {  // ✅ Include company info for super admin
+          select: {
+            id: true,
+            name: true,
+          },
+        },
         _count: {
           select: {
             susuAccounts: true,
@@ -77,7 +83,7 @@ export class SusuPlansService {
 
     console.log("Susu plans query:", { companyId, query });
 
-    // ✅ FIX: Only set companyId if not SUPER_ADMIN
+    // ✅ Only set companyId if not SUPER_ADMIN
     if (companyId !== null) {
       where.companyId = companyId;
     }
@@ -106,6 +112,12 @@ export class SusuPlansService {
         take: limit,
         orderBy: { [sortBy]: sortOrder },
         include: {
+          company: {  // ✅ Include company info for super admin
+            select: {
+              id: true,
+              name: true,
+            },
+          },
           _count: {
             select: {
               susuAccounts: true,
@@ -123,10 +135,24 @@ export class SusuPlansService {
     return PaginationUtil.formatPaginationResult(susuPlans, total, page, limit);
   }
 
-  async getById(id: string, companyId: string) {
+  async getById(id: string, companyId: string | null) {
+    const where: any = { id };
+
+    // ✅ Only filter by companyId if not SUPER_ADMIN
+    if (companyId !== null) {
+      where.companyId = companyId;
+    }
+
     const susuPlan = await prisma.susuPlan.findFirst({
-      where: { id, companyId },
+      where,
       include: {
+        company: {  // ✅ Include company info
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
         _count: {
           select: {
             susuAccounts: true,
@@ -144,7 +170,7 @@ export class SusuPlansService {
 
   async update(
     id: string,
-    companyId: string,
+    companyId: string | null,  // ✅ Can be null for SUPER_ADMIN
     data: {
       name?: string;
       description?: string;
@@ -157,8 +183,13 @@ export class SusuPlansService {
     },
     updatedBy: string
   ) {
+    const where: any = { id };
+    if (companyId !== null) {
+      where.companyId = companyId;
+    }
+
     const susuPlan = await prisma.susuPlan.findFirst({
-      where: { id, companyId },
+      where,
     });
 
     if (!susuPlan) {
@@ -190,6 +221,12 @@ export class SusuPlansService {
       where: { id },
       data,
       include: {
+        company: {  // ✅ Include company info
+          select: {
+            id: true,
+            name: true,
+          },
+        },
         _count: {
           select: {
             susuAccounts: true,
@@ -199,7 +236,7 @@ export class SusuPlansService {
     });
 
     await AuditLogUtil.log({
-      companyId,
+      companyId: susuPlan.companyId,  // ✅ Use plan's actual companyId
       userId: updatedBy,
       action: AuditAction.UPDATE,
       entityType: "SUSU_PLAN",
@@ -212,9 +249,14 @@ export class SusuPlansService {
     return updated;
   }
 
-  async delete(id: string, companyId: string, deletedBy: string) {
+  async delete(id: string, companyId: string | null, deletedBy: string) {
+    const where: any = { id };
+    if (companyId !== null) {
+      where.companyId = companyId;
+    }
+
     const susuPlan = await prisma.susuPlan.findFirst({
-      where: { id, companyId },
+      where,
       include: {
         _count: {
           select: {
@@ -237,7 +279,7 @@ export class SusuPlansService {
     await prisma.susuPlan.delete({ where: { id } });
 
     await AuditLogUtil.log({
-      companyId,
+      companyId: susuPlan.companyId,  // ✅ Use plan's actual companyId
       userId: deletedBy,
       action: AuditAction.DELETE,
       entityType: "SUSU_PLAN",
@@ -251,12 +293,17 @@ export class SusuPlansService {
 
   async uploadImage(
     id: string,
-    companyId: string,
+    companyId: string | null,  // ✅ Can be null for SUPER_ADMIN
     file: Buffer,
     uploadedBy: string
   ) {
+    const where: any = { id };
+    if (companyId !== null) {
+      where.companyId = companyId;
+    }
+
     const susuPlan = await prisma.susuPlan.findFirst({
-      where: { id, companyId },
+      where,
     });
 
     if (!susuPlan) {
@@ -274,16 +321,22 @@ export class SusuPlansService {
       }
     }
 
-    // Upload new image
+    // Upload new image - use plan's actual companyId
     const { url } = await FileUploadUtil.uploadImage(
       file,
-      `susu-plans/${companyId}`
+      `susu-plans/${susuPlan.companyId}`
     );
 
     const updated = await prisma.susuPlan.update({
       where: { id },
       data: { imageUrl: url },
       include: {
+        company: {  // ✅ Include company info
+          select: {
+            id: true,
+            name: true,
+          },
+        },
         _count: {
           select: {
             susuAccounts: true,
@@ -293,7 +346,7 @@ export class SusuPlansService {
     });
 
     await AuditLogUtil.log({
-      companyId,
+      companyId: susuPlan.companyId,  // ✅ Use plan's actual companyId
       userId: uploadedBy,
       action: AuditAction.UPDATE,
       entityType: "SUSU_PLAN",

@@ -61,6 +61,18 @@ export class SusuAccountsService {
             firstName: true,
             lastName: true,
             phone: true,
+            branch: {  // ✅ Include branch with company info
+              select: {
+                id: true,
+                name: true,
+                company: {
+                  select: {
+                    id: true,
+                    name: true,
+                  },
+                },
+              },
+            },
           },
         },
         susuPlan: {
@@ -89,7 +101,7 @@ export class SusuAccountsService {
   }
 
   async getAll(
-    companyId: string | null,
+    companyId: string | null,  // ✅ Can be null for SUPER_ADMIN
     query: IPaginationQuery,
     userRole: UserRole,
     userBranchId?: string
@@ -106,14 +118,14 @@ export class SusuAccountsService {
       query,
     });
 
-    // ✅ FIX: Handle companyId properly for SUPER_ADMIN
+    // ✅ Handle companyId properly for SUPER_ADMIN
     if (companyId !== null) {
       // Company admin and agents - filter by company
       where.customer = {
         companyId: companyId,
       };
     } else {
-      // SUPER_ADMIN - no company filter, but initialize customer object if needed for other filters
+      // SUPER_ADMIN - no company filter, but initialize customer object if needed
       where.customer = {};
     }
 
@@ -170,6 +182,18 @@ export class SusuAccountsService {
               firstName: true,
               lastName: true,
               phone: true,
+              branch: {  // ✅ Include branch with company info
+                select: {
+                  id: true,
+                  name: true,
+                  company: {
+                    select: {
+                      id: true,
+                      name: true,
+                    },
+                  },
+                },
+              },
             },
           },
           susuPlan: {
@@ -178,6 +202,12 @@ export class SusuAccountsService {
               name: true,
               type: true,
               amount: true,
+              company: {  // ✅ Include company info
+                select: {
+                  id: true,
+                  name: true,
+                },
+              },
             },
           },
           _count: {
@@ -198,14 +228,18 @@ export class SusuAccountsService {
 
   async getById(
     id: string,
-    companyId: string,
+    companyId: string | null,  // ✅ Can be null for SUPER_ADMIN
     userRole: UserRole,
     userBranchId?: string
   ) {
-    const where: any = {
-      id,
-      customer: { companyId },
-    };
+    const where: any = { id };
+
+    // ✅ Only filter by companyId if not SUPER_ADMIN
+    if (companyId !== null) {
+      where.customer = { companyId };
+    } else {
+      where.customer = {};
+    }
 
     // ✅ Agents can only see accounts in their branch
     if (userRole === UserRole.AGENT) {
@@ -217,6 +251,11 @@ export class SusuAccountsService {
         "✅ Agent accessing account - filtered to branchId:",
         userBranchId
       );
+    }
+
+    // ✅ Clean up empty customer object if SUPER_ADMIN
+    if (Object.keys(where.customer || {}).length === 0) {
+      delete where.customer;
     }
 
     const account = await prisma.susuAccount.findFirst({
@@ -233,6 +272,13 @@ export class SusuAccountsService {
               select: {
                 id: true,
                 name: true,
+                company: {  // ✅ Include company info
+                  select: {
+                    id: true,
+                    name: true,
+                    email: true,
+                  },
+                },
               },
             },
           },
@@ -246,6 +292,12 @@ export class SusuAccountsService {
             amount: true,
             frequency: true,
             duration: true,
+            company: {  // ✅ Include company info
+              select: {
+                id: true,
+                name: true,
+              },
+            },
           },
         },
         _count: {
@@ -266,7 +318,7 @@ export class SusuAccountsService {
 
   async update(
     id: string,
-    companyId: string,
+    companyId: string | null,  // ✅ Can be null for SUPER_ADMIN
     data: {
       targetAmount?: number;
       endDate?: Date;
@@ -274,10 +326,17 @@ export class SusuAccountsService {
     },
     updatedBy: string
   ) {
+    const where: any = { id };
+
+    // ✅ Only filter by companyId if not SUPER_ADMIN
+    if (companyId !== null) {
+      where.customer = { companyId };
+    }
+
     const account = await prisma.susuAccount.findFirst({
-      where: {
-        id,
-        customer: { companyId },
+      where,
+      include: {
+        customer: true,  // Need full customer for companyId in audit log
       },
     });
 
@@ -294,6 +353,18 @@ export class SusuAccountsService {
             id: true,
             firstName: true,
             lastName: true,
+            branch: {
+              select: {
+                id: true,
+                name: true,
+                company: {
+                  select: {
+                    id: true,
+                    name: true,
+                  },
+                },
+              },
+            },
           },
         },
         susuPlan: {
@@ -306,7 +377,7 @@ export class SusuAccountsService {
     });
 
     await AuditLogUtil.log({
-      companyId,
+      companyId: account.customer.companyId,  // ✅ Use account's actual companyId
       userId: updatedBy,
       action: AuditAction.UPDATE,
       entityType: "SUSU_ACCOUNT",
@@ -321,7 +392,7 @@ export class SusuAccountsService {
 
   async withdraw(
     id: string,
-    companyId: string,
+    companyId: string | null,  // ✅ Can be null for SUPER_ADMIN
     amount: number,
     withdrawBy: string
   ) {
@@ -329,10 +400,17 @@ export class SusuAccountsService {
       throw new Error("Withdrawal amount must be greater than zero");
     }
 
+    const where: any = { id };
+
+    // ✅ Only filter by companyId if not SUPER_ADMIN
+    if (companyId !== null) {
+      where.customer = { companyId };
+    }
+
     const account = await prisma.susuAccount.findFirst({
-      where: {
-        id,
-        customer: { companyId },
+      where,
+      include: {
+        customer: true,  // Need full customer for companyId
       },
     });
 
@@ -372,6 +450,18 @@ export class SusuAccountsService {
               id: true,
               firstName: true,
               lastName: true,
+              branch: {
+                select: {
+                  id: true,
+                  name: true,
+                  company: {
+                    select: {
+                      id: true,
+                      name: true,
+                    },
+                  },
+                },
+              },
             },
           },
         },
@@ -393,7 +483,7 @@ export class SusuAccountsService {
     });
 
     await AuditLogUtil.log({
-      companyId,
+      companyId: account.customer.companyId,  // ✅ Use account's actual companyId
       userId: withdrawBy,
       action: AuditAction.UPDATE,
       entityType: "SUSU_ACCOUNT",
@@ -408,14 +498,18 @@ export class SusuAccountsService {
 
   async getTransactions(
     id: string,
-    companyId: string,
+    companyId: string | null,  // ✅ Can be null for SUPER_ADMIN
     query: IPaginationQuery
   ) {
+    const where: any = { id };
+
+    // ✅ Only filter by companyId if not SUPER_ADMIN
+    if (companyId !== null) {
+      where.customer = { companyId };
+    }
+
     const account = await prisma.susuAccount.findFirst({
-      where: {
-        id,
-        customer: { companyId },
-      },
+      where,
     });
 
     if (!account) {

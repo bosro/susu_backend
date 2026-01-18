@@ -11,6 +11,7 @@ export class DailySummariesController {
     this.dailySummariesService = new DailySummariesService();
   }
 
+  // ✅ Arrow function to preserve 'this' context
   generate = async (
     req: IAuthRequest,
     res: Response,
@@ -33,6 +34,7 @@ export class DailySummariesController {
     }
   };
 
+  // ✅ Arrow function to preserve 'this' context
   getAll = async (
     req: IAuthRequest,
     res: Response,
@@ -53,80 +55,85 @@ export class DailySummariesController {
     }
   };
 
-async getById(
-  req: IAuthRequest,
-  res: Response,
-  next: NextFunction
-): Promise<void> {
-  try {
-    const companyId = req.user!.companyId || null; // ✅ Allow null for SUPER_ADMIN
-    const summary = await this.dailySummariesService.getById(
-      req.params.id,
-      companyId,
-      req.user!.role,
-      req.user!.id
-    );
-    ResponseUtil.success(res, summary, 'Daily summary retrieved successfully');
-  } catch (error: any) {
-    next(error);
-  }
-}
+  // ✅ Arrow function to preserve 'this' context
+  getById = async (
+    req: IAuthRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> => {
+    try {
+      const companyId = req.user!.companyId || null;
+      const summary = await this.dailySummariesService.getById(
+        req.params.id,
+        companyId,
+        req.user!.role,
+        req.user!.id
+      );
+      ResponseUtil.success(res, summary, 'Daily summary retrieved successfully');
+    } catch (error: any) {
+      next(error);
+    }
+  };
 
-async update(
-  req: IAuthRequest,
-  res: Response,
-  next: NextFunction
-): Promise<void> {
-  try {
-    const companyId = req.user!.companyId || null; // ✅ Allow null
-    const summary = await this.dailySummariesService.update(
-      req.params.id,
-      companyId,
-      req.body,
-      req.user!.id
-    );
-    ResponseUtil.success(res, summary, 'Daily summary updated successfully');
-  } catch (error: any) {
-    next(error);
-  }
-}
+  // ✅ Arrow function to preserve 'this' context
+  update = async (
+    req: IAuthRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> => {
+    try {
+      const companyId = req.user!.companyId || null;
+      const summary = await this.dailySummariesService.update(
+        req.params.id,
+        companyId,
+        req.body,
+        req.user!.id
+      );
+      ResponseUtil.success(res, summary, 'Daily summary updated successfully');
+    } catch (error: any) {
+      next(error);
+    }
+  };
 
-async lock(
-  req: IAuthRequest,
-  res: Response,
-  next: NextFunction
-): Promise<void> {
-  try {
-    const companyId = req.user!.companyId || null; // ✅ Allow null
-    const summary = await this.dailySummariesService.lock(
-      req.params.id,
-      companyId,
-      req.user!.id
-    );
-    ResponseUtil.success(res, summary, 'Daily summary locked successfully');
-  } catch (error: any) {
-    next(error);
-  }
-}
+  // ✅ Arrow function to preserve 'this' context
+  lock = async (
+    req: IAuthRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> => {
+    try {
+      const companyId = req.user!.companyId || null;
+      const summary = await this.dailySummariesService.lock(
+        req.params.id,
+        companyId,
+        req.user!.id
+      );
+      ResponseUtil.success(res, summary, 'Daily summary locked successfully');
+    } catch (error: any) {
+      next(error);
+    }
+  };
 
-async unlock(
-  req: IAuthRequest,
-  res: Response,
-  next: NextFunction
-): Promise<void> {
-  try {
-    const companyId = req.user!.companyId || null; // ✅ Allow null
-    const summary = await this.dailySummariesService.unlock(
-      req.params.id,
-      companyId,
-      req.user!.id
-    );
-    ResponseUtil.success(res, summary, 'Daily summary unlocked successfully');
-  } catch (error: any) {
-    next(error);
-  }
-}
+  // ✅ Arrow function to preserve 'this' context
+  unlock = async (
+    req: IAuthRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> => {
+    try {
+      const companyId = req.user!.companyId || null;
+      const summary = await this.dailySummariesService.unlock(
+        req.params.id,
+        companyId,
+        req.user!.id
+      );
+      ResponseUtil.success(res, summary, 'Daily summary unlocked successfully');
+    } catch (error: any) {
+      next(error);
+    }
+  };
 
+  // ✅ Arrow function to preserve 'this' context
   getStats = async (
     req: IAuthRequest,
     res: Response,
@@ -141,4 +148,3 @@ async unlock(
     }
   };
 }
-

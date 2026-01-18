@@ -17,7 +17,14 @@ export class SusuPlansController {
     next: NextFunction
   ): Promise<void> => {
     try {
-      const companyId = req.user!.companyId!;
+      // ✅ Super admin needs to specify companyId in request body
+      const companyId = req.user!.companyId || req.body.companyId;
+
+      if (!companyId) {
+        ResponseUtil.badRequest(res, 'Company ID is required');
+        return;
+      }
+
       const susuPlan = await this.susuPlansService.create(
         companyId,
         req.body,
@@ -35,7 +42,7 @@ export class SusuPlansController {
     next: NextFunction
   ): Promise<void> => {
     try {
-      const companyId = req.user!.companyId!;
+      const companyId = req.user!.companyId;  // ✅ Can be null for SUPER_ADMIN
       const result = await this.susuPlansService.getAll(companyId, req.query);
       ResponseUtil.success(res, result, 'Susu plans retrieved successfully');
     } catch (error: any) {
@@ -49,7 +56,7 @@ export class SusuPlansController {
     next: NextFunction
   ): Promise<void> => {
     try {
-      const companyId = req.user!.companyId!;
+      const companyId = req.user!.companyId;  // ✅ Can be null for SUPER_ADMIN
       const susuPlan = await this.susuPlansService.getById(
         req.params.id,
         companyId
@@ -66,7 +73,7 @@ export class SusuPlansController {
     next: NextFunction
   ): Promise<void> => {
     try {
-      const companyId = req.user!.companyId!;
+      const companyId = req.user!.companyId;  // ✅ Can be null for SUPER_ADMIN
       const susuPlan = await this.susuPlansService.update(
         req.params.id,
         companyId,
@@ -85,7 +92,7 @@ export class SusuPlansController {
     next: NextFunction
   ): Promise<void> => {
     try {
-      const companyId = req.user!.companyId!;
+      const companyId = req.user!.companyId;  // ✅ Can be null for SUPER_ADMIN
       const result = await this.susuPlansService.delete(
         req.params.id,
         companyId,
@@ -108,7 +115,7 @@ export class SusuPlansController {
         return;
       }
 
-      const companyId = req.user!.companyId!;
+      const companyId = req.user!.companyId;  // ✅ Can be null for SUPER_ADMIN
       const susuPlan = await this.susuPlansService.uploadImage(
         req.params.id,
         companyId,
@@ -121,4 +128,3 @@ export class SusuPlansController {
     }
   };
 }
-

@@ -19,7 +19,9 @@ export class ReportsController {
     next: NextFunction
   ): Promise<void> => {
     try {
-      const companyId = req.user!.companyId!;
+      // ✅ Allow null for SUPER_ADMIN
+      const companyId = req.user!.companyId || null;
+      
       const report = await this.reportsService.getCollectionReport(companyId, {
         startDate: new Date(req.query.startDate as string),
         endDate: new Date(req.query.endDate as string),
@@ -28,13 +30,16 @@ export class ReportsController {
         customerId: req.query.customerId as string,
       });
 
-      await AuditLogUtil.log({
-        companyId,
-        userId: req.user!.id,
-        action: AuditAction.EXPORT,
-        entityType: 'REPORT',
-        changes: { reportType: 'collection', filters: req.query },
-      });
+      // ✅ Only log audit if companyId exists
+      if (companyId) {
+        await AuditLogUtil.log({
+          companyId,
+          userId: req.user!.id,
+          action: AuditAction.EXPORT,
+          entityType: 'REPORT',
+          changes: { reportType: 'collection', filters: req.query },
+        });
+      }
 
       ResponseUtil.success(res, report, 'Collection report generated successfully');
     } catch (error: any) {
@@ -48,20 +53,25 @@ export class ReportsController {
     next: NextFunction
   ): Promise<void> => {
     try {
-      const companyId = req.user!.companyId!;
+      // ✅ Allow null for SUPER_ADMIN
+      const companyId = req.user!.companyId || null;
+      
       const report = await this.reportsService.getAgentPerformanceReport(companyId, {
         startDate: new Date(req.query.startDate as string),
         endDate: new Date(req.query.endDate as string),
         branchId: req.query.branchId as string,
       });
 
-      await AuditLogUtil.log({
-        companyId,
-        userId: req.user!.id,
-        action: AuditAction.EXPORT,
-        entityType: 'REPORT',
-        changes: { reportType: 'agent-performance', filters: req.query },
-      });
+      // ✅ Only log audit if companyId exists
+      if (companyId) {
+        await AuditLogUtil.log({
+          companyId,
+          userId: req.user!.id,
+          action: AuditAction.EXPORT,
+          entityType: 'REPORT',
+          changes: { reportType: 'agent-performance', filters: req.query },
+        });
+      }
 
       ResponseUtil.success(res, report, 'Agent performance report generated successfully');
     } catch (error: any) {
@@ -75,7 +85,9 @@ export class ReportsController {
     next: NextFunction
   ): Promise<void> => {
     try {
-      const companyId = req.user!.companyId!;
+      // ✅ Allow null for SUPER_ADMIN
+      const companyId = req.user!.companyId || null;
+      
       const report = await this.reportsService.getCustomerReport(companyId, {
         startDate: new Date(req.query.startDate as string),
         endDate: new Date(req.query.endDate as string),
@@ -83,13 +95,16 @@ export class ReportsController {
         customerId: req.query.customerId as string,
       });
 
-      await AuditLogUtil.log({
-        companyId,
-        userId: req.user!.id,
-        action: AuditAction.EXPORT,
-        entityType: 'REPORT',
-        changes: { reportType: 'customer', filters: req.query },
-      });
+      // ✅ Only log audit if companyId exists
+      if (companyId) {
+        await AuditLogUtil.log({
+          companyId,
+          userId: req.user!.id,
+          action: AuditAction.EXPORT,
+          entityType: 'REPORT',
+          changes: { reportType: 'customer', filters: req.query },
+        });
+      }
 
       ResponseUtil.success(res, report, 'Customer report generated successfully');
     } catch (error: any) {
@@ -103,19 +118,24 @@ export class ReportsController {
     next: NextFunction
   ): Promise<void> => {
     try {
-      const companyId = req.user!.companyId!;
+      // ✅ Allow null for SUPER_ADMIN
+      const companyId = req.user!.companyId || null;
+      
       const report = await this.reportsService.getBranchReport(companyId, {
         startDate: new Date(req.query.startDate as string),
         endDate: new Date(req.query.endDate as string),
       });
 
-      await AuditLogUtil.log({
-        companyId,
-        userId: req.user!.id,
-        action: AuditAction.EXPORT,
-        entityType: 'REPORT',
-        changes: { reportType: 'branch', filters: req.query },
-      });
+      // ✅ Only log audit if companyId exists
+      if (companyId) {
+        await AuditLogUtil.log({
+          companyId,
+          userId: req.user!.id,
+          action: AuditAction.EXPORT,
+          entityType: 'REPORT',
+          changes: { reportType: 'branch', filters: req.query },
+        });
+      }
 
       ResponseUtil.success(res, report, 'Branch report generated successfully');
     } catch (error: any) {
@@ -129,20 +149,25 @@ export class ReportsController {
     next: NextFunction
   ): Promise<void> => {
     try {
-      const companyId = req.user!.companyId!;
+      // ✅ Allow null for SUPER_ADMIN
+      const companyId = req.user!.companyId || null;
+      
       const report = await this.reportsService.getFinancialSummary(companyId, {
         startDate: new Date(req.query.startDate as string),
         endDate: new Date(req.query.endDate as string),
         branchId: req.query.branchId as string,
       });
 
-      await AuditLogUtil.log({
-        companyId,
-        userId: req.user!.id,
-        action: AuditAction.EXPORT,
-        entityType: 'REPORT',
-        changes: { reportType: 'financial-summary', filters: req.query },
-      });
+      // ✅ Only log audit if companyId exists
+      if (companyId) {
+        await AuditLogUtil.log({
+          companyId,
+          userId: req.user!.id,
+          action: AuditAction.EXPORT,
+          entityType: 'REPORT',
+          changes: { reportType: 'financial-summary', filters: req.query },
+        });
+      }
 
       ResponseUtil.success(res, report, 'Financial summary generated successfully');
     } catch (error: any) {
@@ -150,4 +175,3 @@ export class ReportsController {
     }
   };
 }
-

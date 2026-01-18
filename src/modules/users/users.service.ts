@@ -85,11 +85,16 @@ export class UsersService {
     return user;
   }
 
-  async getAll(companyId: string, query: IPaginationQuery) {
+  async getAll(companyId: string | null, query: IPaginationQuery) {
     const { page, limit, skip, sortBy, sortOrder } =
       PaginationUtil.getPaginationParams(query);
 
-    const where: any = { companyId };
+    const where: any = {};
+
+    // ✅ Only filter by companyId if not SUPER_ADMIN
+    if (companyId !== null) {
+      where.companyId = companyId;
+    }
 
     if (query.search) {
       where.OR = [
@@ -127,10 +132,18 @@ export class UsersService {
           isActive: true,
           lastLogin: true,
           branchId: true,
+          companyId: true, // ✅ Include companyId for SUPER_ADMIN view
           branch: {
             select: {
               id: true,
               name: true,
+            },
+          },
+          company: { // ✅ Include company for SUPER_ADMIN view
+            select: {
+              id: true,
+              name: true,
+              status: true,
             },
           },
           createdAt: true,
@@ -143,9 +156,16 @@ export class UsersService {
     return PaginationUtil.formatPaginationResult(users, total, page, limit);
   }
 
-  async getById(id: string, companyId: string) {
+  async getById(id: string, companyId: string | null) {
+    const where: any = { id };
+
+    // ✅ Only filter by companyId if not SUPER_ADMIN
+    if (companyId !== null) {
+      where.companyId = companyId;
+    }
+
     const user = await prisma.user.findFirst({
-      where: { id, companyId },
+      where,
       select: {
         id: true,
         email: true,
@@ -156,11 +176,19 @@ export class UsersService {
         isActive: true,
         lastLogin: true,
         branchId: true,
+        companyId: true,
         branch: {
           select: {
             id: true,
             name: true,
             address: true,
+          },
+        },
+        company: {
+          select: {
+            id: true,
+            name: true,
+            status: true,
           },
         },
         createdAt: true,
@@ -183,7 +211,7 @@ export class UsersService {
 
   async update(
     id: string,
-    companyId: string,
+    companyId: string | null,
     data: {
       firstName?: string;
       lastName?: string;
@@ -193,8 +221,15 @@ export class UsersService {
     },
     updatedBy: string
   ) {
+    const where: any = { id };
+
+    // ✅ Only filter by companyId if not SUPER_ADMIN
+    if (companyId !== null) {
+      where.companyId = companyId;
+    }
+
     const user = await prisma.user.findFirst({
-      where: { id, companyId },
+      where,
     });
 
     if (!user) {
@@ -204,7 +239,10 @@ export class UsersService {
     // Validate branch if provided
     if (data.branchId) {
       const branch = await prisma.branch.findFirst({
-        where: { id: data.branchId, companyId },
+        where: { 
+          id: data.branchId, 
+          companyId: user.companyId! // Use the user's companyId
+        },
       });
 
       if (!branch) {
@@ -233,8 +271,9 @@ export class UsersService {
       },
     });
 
+    // ✅ Use user's companyId for audit log
     await AuditLogUtil.log({
-      companyId,
+      companyId: user.companyId!,
       userId: updatedBy,
       action: AuditAction.UPDATE,
       entityType: 'USER',
@@ -245,9 +284,16 @@ export class UsersService {
     return updated;
   }
 
-  async delete(id: string, companyId: string, deletedBy: string) {
+  async delete(id: string, companyId: string | null, deletedBy: string) {
+    const where: any = { id };
+
+    // ✅ Only filter by companyId if not SUPER_ADMIN
+    if (companyId !== null) {
+      where.companyId = companyId;
+    }
+
     const user = await prisma.user.findFirst({
-      where: { id, companyId },
+      where,
     });
 
     if (!user) {
@@ -258,7 +304,7 @@ export class UsersService {
       // Check if this is the only company admin
       const adminCount = await prisma.user.count({
         where: {
-          companyId,
+          companyId: user.companyId,
           role: UserRole.COMPANY_ADMIN,
           isActive: true,
         },
@@ -271,8 +317,9 @@ export class UsersService {
 
     await prisma.user.delete({ where: { id } });
 
+    // ✅ Use user's companyId for audit log
     await AuditLogUtil.log({
-      companyId,
+      companyId: user.companyId!,
       userId: deletedBy,
       action: AuditAction.DELETE,
       entityType: 'USER',
@@ -282,9 +329,21 @@ export class UsersService {
     return { message: 'User deleted successfully' };
   }
 
-  async resetPassword(id: string, companyId: string, newPassword: string, resetBy: string) {
+  async resetPassword(
+    id: string, 
+    companyId: string | null, 
+    newPassword: string, 
+    resetBy: string
+  ) {
+    const where: any = { id };
+
+    // ✅ Only filter by companyId if not SUPER_ADMIN
+    if (companyId !== null) {
+      where.companyId = companyId;
+    }
+
     const user = await prisma.user.findFirst({
-      where: { id, companyId },
+      where,
     });
 
     if (!user) {
@@ -303,8 +362,9 @@ export class UsersService {
       where: { userId: id },
     });
 
+    // ✅ Use user's companyId for audit log
     await AuditLogUtil.log({
-      companyId,
+      companyId: user.companyId!,
       userId: resetBy,
       action: AuditAction.UPDATE,
       entityType: 'USER',

@@ -11,13 +11,20 @@ export class UsersController {
     this.usersService = new UsersService();
   }
 
+  // ✅ Arrow function to preserve 'this' context
   create = async (
     req: IAuthRequest,
     res: Response,
     next: NextFunction
   ): Promise<void> => {
     try {
-      const companyId = req.user!.companyId!;
+      // ✅ Allow null for SUPER_ADMIN, but they must specify companyId in body
+      const companyId = req.user!.companyId || req.body.companyId;
+      
+      if (!companyId) {
+        throw new Error('Company ID is required');
+      }
+
       const user = await this.usersService.create(
         companyId,
         req.body,
@@ -29,13 +36,15 @@ export class UsersController {
     }
   };
 
+  // ✅ Arrow function to preserve 'this' context
   getAll = async (
     req: IAuthRequest,
     res: Response,
     next: NextFunction
   ): Promise<void> => {
     try {
-      const companyId = req.user!.companyId!;
+      // ✅ Allow null for SUPER_ADMIN
+      const companyId = req.user!.companyId || null;
       const result = await this.usersService.getAll(companyId, req.query);
       ResponseUtil.success(res, result, 'Users retrieved successfully');
     } catch (error: any) {
@@ -43,13 +52,15 @@ export class UsersController {
     }
   };
 
+  // ✅ Arrow function to preserve 'this' context
   getById = async (
     req: IAuthRequest,
     res: Response,
     next: NextFunction
   ): Promise<void> => {
     try {
-      const companyId = req.user!.companyId!;
+      // ✅ Allow null for SUPER_ADMIN
+      const companyId = req.user!.companyId || null;
       const user = await this.usersService.getById(req.params.id, companyId);
       ResponseUtil.success(res, user, 'User retrieved successfully');
     } catch (error: any) {
@@ -57,13 +68,15 @@ export class UsersController {
     }
   };
 
+  // ✅ Arrow function to preserve 'this' context
   update = async (
     req: IAuthRequest,
     res: Response,
     next: NextFunction
   ): Promise<void> => {
     try {
-      const companyId = req.user!.companyId!;
+      // ✅ Allow null for SUPER_ADMIN
+      const companyId = req.user!.companyId || null;
       const user = await this.usersService.update(
         req.params.id,
         companyId,
@@ -76,13 +89,15 @@ export class UsersController {
     }
   };
 
+  // ✅ Arrow function to preserve 'this' context
   delete = async (
     req: IAuthRequest,
     res: Response,
     next: NextFunction
   ): Promise<void> => {
     try {
-      const companyId = req.user!.companyId!;
+      // ✅ Allow null for SUPER_ADMIN
+      const companyId = req.user!.companyId || null;
       const result = await this.usersService.delete(
         req.params.id,
         companyId,
@@ -94,13 +109,15 @@ export class UsersController {
     }
   };
 
+  // ✅ Arrow function to preserve 'this' context
   resetPassword = async (
     req: IAuthRequest,
     res: Response,
     next: NextFunction
   ): Promise<void> => {
     try {
-      const companyId = req.user!.companyId!;
+      // ✅ Allow null for SUPER_ADMIN
+      const companyId = req.user!.companyId || null;
       const result = await this.usersService.resetPassword(
         req.params.id,
         companyId,
@@ -113,4 +130,3 @@ export class UsersController {
     }
   };
 }
-
