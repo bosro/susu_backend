@@ -12,9 +12,9 @@ export const collectionsValidation = {
     status: Joi.string()
       .valid(...Object.values(CollectionStatus))
       .optional(),
-    notes: Joi.string().optional(),
-    latitude: Joi.string().optional(),
-    longitude: Joi.string().optional(),
+    notes: Joi.string().allow('').optional(),  // ✅ Allow empty string
+    latitude: Joi.string().allow('').optional(),  // ✅ Allow empty string
+    longitude: Joi.string().allow('').optional(),  // ✅ Allow empty string
   }),
 
   update: Joi.object({
@@ -22,7 +22,7 @@ export const collectionsValidation = {
     status: Joi.string()
       .valid(...Object.values(CollectionStatus))
       .optional(),
-    notes: Joi.string().optional(),
+    notes: Joi.string().allow('').optional(),  // ✅ Allow empty string
   }),
 
   query: Joi.object({
