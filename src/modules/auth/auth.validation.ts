@@ -38,4 +38,9 @@ export const authValidation = {
     newPassword: Joi.string().min(8).required(),
     confirmPassword: Joi.string().valid(Joi.ref('newPassword')).required(),
   }),
+
+  // ✅ NEW: Add verifyResetToken validation
+  verifyResetToken: Joi.object({
+    token: Joi.string().required(),
+  }),
 };

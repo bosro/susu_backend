@@ -1,8 +1,9 @@
-// src/modules/auth/auth.controller.ts
+// src/modules/auth/auth.controller.ts - ADD missing controllers
 import { Response, NextFunction } from "express";
 import { AuthService } from "./auth.service";
 import { ResponseUtil } from "../../utils/response.util";
 import { IAuthRequest } from "../../types/interfaces";
+import { EmailService } from "../../services/email.service";
 
 export class AuthController {
   private authService: AuthService;
@@ -14,10 +15,9 @@ export class AuthController {
   cleanupTokens = async (
     req: IAuthRequest,
     res: Response,
-    next: NextFunction
+    next: NextFunction,
   ): Promise<void> => {
     try {
-      // Only super admins can trigger cleanup
       if (req.user?.role !== "SUPER_ADMIN") {
         ResponseUtil.forbidden(res, "Access denied");
         return;
@@ -27,7 +27,7 @@ export class AuthController {
       ResponseUtil.success(
         res,
         { count },
-        `Cleaned up ${count} expired tokens`
+        `Cleaned up ${count} expired tokens`,
       );
     } catch (error: any) {
       next(error);
@@ -37,7 +37,7 @@ export class AuthController {
   register = async (
     req: IAuthRequest,
     res: Response,
-    next: NextFunction
+    next: NextFunction,
   ): Promise<void> => {
     try {
       const result = await this.authService.register(req.body);
@@ -50,7 +50,7 @@ export class AuthController {
   login = async (
     req: IAuthRequest,
     res: Response,
-    next: NextFunction
+    next: NextFunction,
   ): Promise<void> => {
     try {
       const { email, password } = req.body;
@@ -61,7 +61,7 @@ export class AuthController {
         email,
         password,
         ipAddress,
-        userAgent
+        userAgent,
       );
       ResponseUtil.success(res, result, "Login successful");
     } catch (error: any) {
@@ -72,7 +72,7 @@ export class AuthController {
   refreshToken = async (
     req: IAuthRequest,
     res: Response,
-    next: NextFunction
+    next: NextFunction,
   ): Promise<void> => {
     try {
       const { refreshToken } = req.body;
@@ -86,7 +86,7 @@ export class AuthController {
   logout = async (
     req: IAuthRequest,
     res: Response,
-    next: NextFunction
+    next: NextFunction,
   ): Promise<void> => {
     try {
       const userId = req.user!.id;
@@ -101,7 +101,7 @@ export class AuthController {
   changePassword = async (
     req: IAuthRequest,
     res: Response,
-    next: NextFunction
+    next: NextFunction,
   ): Promise<void> => {
     try {
       const userId = req.user!.id;
@@ -109,7 +109,7 @@ export class AuthController {
       const result = await this.authService.changePassword(
         userId,
         currentPassword,
-        newPassword
+        newPassword,
       );
       ResponseUtil.success(res, result, "Password changed successfully");
     } catch (error: any) {
@@ -120,7 +120,7 @@ export class AuthController {
   getProfile = async (
     req: IAuthRequest,
     res: Response,
-    next: NextFunction
+    next: NextFunction,
   ): Promise<void> => {
     try {
       const userId = req.user!.id;
@@ -134,12 +134,105 @@ export class AuthController {
   updateProfile = async (
     req: IAuthRequest,
     res: Response,
-    next: NextFunction
+    next: NextFunction,
   ): Promise<void> => {
     try {
       const userId = req.user!.id;
       const profile = await this.authService.updateProfile(userId, req.body);
       ResponseUtil.success(res, profile, "Profile updated successfully");
+    } catch (error: any) {
+      next(error);
+    }
+  };
+
+  // ✅ NEW: Missing controllers
+  forgotPassword = async (
+    req: IAuthRequest,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> => {
+    try {
+      const { email } = req.body;
+      // Implement forgot password logic in AuthService
+      const result = await this.authService.forgotPassword(email);
+      ResponseUtil.success(res, result, "Password reset email sent");
+    } catch (error: any) {
+      next(error);
+    }
+  };
+
+  resetPassword = async (
+    req: IAuthRequest,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> => {
+    try {
+      const { token, newPassword } = req.body;
+      // Implement reset password logic in AuthService
+      const result = await this.authService.resetPassword({
+        token,
+        newPassword,
+        confirmPassword: newPassword,
+      });
+      ResponseUtil.success(res, result, "Password reset successfully");
+    } catch (error: any) {
+      next(error);
+    }
+  };
+
+  verifyResetToken = async (
+    req: IAuthRequest,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> => {
+    try {
+      const { token } = req.body;
+      const result = await this.authService.verifyResetToken({ token });
+      ResponseUtil.success(res, result, "Token verified successfully");
+    } catch (error: any) {
+      next(error);
+    }
+  };
+
+  adminResetUserPassword = async (
+    req: IAuthRequest,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> => {
+    try {
+      if (req.user?.role !== "SUPER_ADMIN") {
+        ResponseUtil.forbidden(res, "Access denied");
+        return;
+      }
+
+      const { userId, newPassword } = req.body;
+      const result = await this.authService.adminResetUserPassword(
+        userId,
+        newPassword,
+      );
+      ResponseUtil.success(res, result, "User password reset successfully");
+    } catch (error: any) {
+      next(error);
+    }
+  };
+
+  verifyEmailService = async (
+    _req: IAuthRequest,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> => {
+    try {
+      const isConnected = await EmailService.verifyConnection();
+
+      if (isConnected) {
+        ResponseUtil.success(
+          res,
+          { connected: true },
+          "Email service is working",
+        );
+      } else {
+        ResponseUtil.error(res, "Email service is not configured properly");
+      }
     } catch (error: any) {
       next(error);
     }

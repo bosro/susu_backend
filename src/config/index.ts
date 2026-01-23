@@ -47,6 +47,21 @@ export const config = {
   cors: {
     origin: process.env.FRONTEND_URL || 'http://localhost:4200',
   },
+
+   // ✅ Email configuration
+  email: {
+    host: process.env.EMAIL_HOST || 'smtp.gmail.com',
+    port: parseInt(process.env.EMAIL_PORT || '587'),
+    secure: process.env.EMAIL_SECURE === 'false', // true for 465, false for 587
+    user: process.env.EMAIL_USER || '',
+    password: process.env.EMAIL_PASSWORD || '',
+    from: process.env.EMAIL_FROM || 'noreply@susuapp.com',
+    fromName: process.env.EMAIL_FROM_NAME || 'Susu Management System',
+    support: process.env.EMAIL_SUPPORT || 'support@susuapp.com',
+  },
+
+
+  frontendUrl: process.env.FRONTEND_URL || 'http://localhost:4200',
 };
 
 // Validate required environment variables

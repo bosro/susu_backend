@@ -25,7 +25,7 @@ export class AuthMiddleware {
       try {
         const decoded = JWTUtil.verifyAccessToken(token);
 
-        // Verify user still exists and is active
+        // ✅ Verify user still exists and is active
         const user = await prisma.user.findUnique({
           where: { id: decoded.userId },
           select: {
@@ -37,11 +37,32 @@ export class AuthMiddleware {
             companyId: true,
             branchId: true,
             isActive: true,
+            company: {
+              select: {
+                status: true,
+              },
+            },
           },
         });
 
-        if (!user || !user.isActive) {
-          ResponseUtil.unauthorized(res, 'User not found or inactive');
+        if (!user) {
+          console.warn('❌ Auth middleware: User not found:', decoded.userId);
+          ResponseUtil.unauthorized(res, 'User not found');
+          return;
+        }
+
+        if (!user.isActive) {
+          console.warn('❌ Auth middleware: User is inactive:', user.email);
+          ResponseUtil.unauthorized(res, 'User account is inactive');
+          return;
+        }
+
+        // ✅ Check if company is active (for non-super admins)
+        if (user.role !== UserRole.SUPER_ADMIN && 
+            user.company && 
+            user.company.status !== 'ACTIVE') {
+          console.warn('❌ Auth middleware: Company is not active:', user.company.status);
+          ResponseUtil.unauthorized(res, 'Company account is not active');
           return;
         }
 
@@ -56,11 +77,18 @@ export class AuthMiddleware {
         };
 
         next();
-      } catch (error) {
-        ResponseUtil.unauthorized(res, 'Invalid or expired token');
+      } catch (error: any) {
+        console.error('❌ Token verification error:', error.message);
+        // ✅ More specific error messages
+        if (error.message.includes('expired')) {
+          ResponseUtil.unauthorized(res, 'Token has expired');
+        } else {
+          ResponseUtil.unauthorized(res, 'Invalid token');
+        }
         return;
       }
     } catch (error) {
+      console.error('❌ Authentication error:', error);
       ResponseUtil.error(res, 'Authentication error');
     }
   }
@@ -72,7 +100,17 @@ export class AuthMiddleware {
         return;
       }
 
+      // ✅ Super admin can access everything
+      if (req.user.role === UserRole.SUPER_ADMIN) {
+        console.log('✅ Auth middleware: Super admin access granted');
+        return next();
+      }
+
       if (!roles.includes(req.user.role)) {
+        console.warn(
+          `❌ Auth middleware: Access denied for role "${req.user.role}". Required roles:`,
+          roles
+        );
         ResponseUtil.forbidden(
           res,
           'You do not have permission to perform this action'

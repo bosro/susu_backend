@@ -81,6 +81,16 @@ model User {
   role        UserRole
   isActive    Boolean   @default(true)
   lastLogin   DateTime?
+
+  resetToken  String?
+  resetTokenExpiry DateTime?
+
+    // ✅ Theme preferences
+  themeMode        String?  @default("light") // "light" or "dark"
+  themeColor       String?  @default("default") // "default", "blue", "green", "purple"
+  customPrimary    String?  // Custom primary color
+  customSecondary  String?  // Custom secondary color
+
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   
