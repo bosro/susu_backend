@@ -23,8 +23,8 @@ export const susuPlansValidation = {
       .optional(),
     amount: Joi.number().positive().optional(),
     frequency: Joi.string().optional(),
-    duration: Joi.number().positive().optional(),
-    targetAmount: Joi.number().positive().optional(),
+    duration: Joi.number().integer().positive().allow(null).optional(),
+    targetAmount: Joi.number().positive().allow(null).optional(),
     isActive: Joi.boolean().optional(),
   }),
 

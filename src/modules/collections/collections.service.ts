@@ -1,4 +1,6 @@
 // src/modules/collections/collections.service.ts
+// ✅ UPDATED - Added unread count tracking and mark as read functionality
+
 import { prisma } from "../../config/database";
 import { PaginationUtil } from "../../utils/pagination.util";
 import { AuditLogUtil } from "../../utils/audit-log.util";
@@ -12,6 +14,144 @@ import {
 import { IPaginationQuery } from "../../types/interfaces";
 
 export class CollectionsService {
+  // ✅ NEW: Get unread collection count for a user
+  async getUnreadCount(userId: string, companyId: string | null, userRole: UserRole): Promise<number> {
+    const where: any = {};
+
+    // Company filter
+    if (companyId !== null) {
+      where.companyId = companyId;
+    }
+
+    // Role-based filtering
+    if (userRole === UserRole.AGENT) {
+      // Agents only see collections they created
+      where.agentId = userId;
+    } else if (userRole === UserRole.COMPANY_ADMIN) {
+      // Company admins see all company collections
+      // No additional filter needed
+    }
+
+    // ✅ Collections not viewed by this user
+    where.NOT = {
+      viewedBy: {
+        has: userId
+      }
+    };
+
+    const count = await prisma.collection.count({ where });
+
+    console.log(`📬 Unread collections for user ${userId}:`, count);
+
+    return count;
+  }
+
+  // ✅ NEW: Mark collection as read by user
+  async markAsRead(collectionId: string, userId: string): Promise<void> {
+    const collection = await prisma.collection.findUnique({
+      where: { id: collectionId },
+      select: { viewedBy: true }
+    });
+
+    if (!collection) {
+      throw new Error("Collection not found");
+    }
+
+    // Add user to viewedBy array if not already there
+    if (!collection.viewedBy.includes(userId)) {
+      await prisma.collection.update({
+        where: { id: collectionId },
+        data: {
+          viewedBy: {
+            push: userId
+          }
+        }
+      });
+
+      console.log(`✅ Collection ${collectionId} marked as read by user ${userId}`);
+    }
+  }
+
+  // ✅ NEW: Mark multiple collections as read
+  async markMultipleAsRead(collectionIds: string[], userId: string): Promise<void> {
+    await prisma.collection.updateMany({
+      where: {
+        id: { in: collectionIds },
+        NOT: {
+          viewedBy: {
+            has: userId
+          }
+        }
+      },
+      data: {
+        viewedBy: {
+          push: userId
+        }
+      }
+    });
+
+    console.log(`✅ Marked ${collectionIds.length} collections as read for user ${userId}`);
+  }
+
+  // ✅ EXISTING: Validate agent branch access
+  async validateAgentBranchAccess(agentId: string, branchId: string): Promise<void> {
+    const assignment = await prisma.agentBranchAssignment.findFirst({
+      where: {
+        userId: agentId,
+        branchId: branchId,
+      },
+      include: {
+        branch: {
+          select: {
+            name: true,
+            isActive: true,
+          },
+        },
+      },
+    });
+
+    if (!assignment) {
+      throw new Error(
+        'You do not have access to this branch. Please select a branch assigned to you.'
+      );
+    }
+
+    if (!assignment.branch.isActive) {
+      throw new Error(
+        `Branch "${assignment.branch.name}" is currently inactive and cannot accept collections.`
+      );
+    }
+  }
+
+  // ✅ EXISTING: Get agent branches
+  async getAgentBranches(agentId: string) {
+    const assignments = await prisma.agentBranchAssignment.findMany({
+      where: {
+        userId: agentId,
+      },
+      include: {
+        branch: {
+          select: {
+            id: true,
+            name: true,
+            address: true,
+            phone: true,
+            isActive: true,
+          },
+        },
+      },
+      orderBy: {
+        branch: {
+          name: 'asc',
+        },
+      },
+    });
+
+    return assignments
+      .filter(a => a.branch.isActive)
+      .map(a => a.branch);
+  }
+
   async create(
     companyId: string,
     branchId: string,
@@ -30,6 +170,7 @@ export class CollectionsService {
   ) {
     console.log("💰 Creating collection:", {
       companyId,
+      branchId,
       customerId: data.customerId,
       amount: data.amount,
       status: data.status || CollectionStatus.COLLECTED,
@@ -77,7 +218,7 @@ export class CollectionsService {
     }
 
     const collection = await prisma.$transaction(async (tx) => {
-      // Create collection
+      // Create collection with creator marked as viewed
       const newCollection = await tx.collection.create({
         data: {
           companyId,
@@ -92,6 +233,7 @@ export class CollectionsService {
           notes: data.notes,
           latitude: data.latitude,
           longitude: data.longitude,
+          viewedBy: [agentId], // ✅ Creator has already "seen" their own collection
         },
         include: {
           customer: {
@@ -165,7 +307,7 @@ export class CollectionsService {
   }
 
   async getAll(
-    companyId: string | null,  // ✅ Can be null for SUPER_ADMIN
+    companyId: string | null,
     query: IPaginationQuery & {
       customerId?: string;
       susuAccountId?: string;
@@ -176,41 +318,44 @@ export class CollectionsService {
       endDate?: string;
     },
     userRole: UserRole,
-    userId?: string,
-    userBranchId?: string
+    userId?: string
   ) {
     const { page, limit, skip, sortBy, sortOrder } =
       PaginationUtil.getPaginationParams(query);
 
     const where: any = {};
 
-    console.log("Collections query:", {
+    console.log("📋 Collections query:", {
       companyId,
       userRole,
       userId,
-      userBranchId,
       queryParams: query,
     });
 
-    // ✅ Only set companyId if not SUPER_ADMIN
+    // Company filter
     if (companyId !== null) {
       where.companyId = companyId;
     }
 
-    // ✅ Role-based data scoping
+    // Role-based data scoping
     if (userRole === UserRole.AGENT) {
       if (!userId) {
         console.warn("❌ Agent has no user ID");
         throw new Error("Agent ID is required");
       }
 
-      where.agentId = userId;
+      const agentBranches = await this.getAgentBranches(userId);
+      const branchIds = agentBranches.map(b => b.id);
 
-      if (userBranchId) {
-        where.branchId = userBranchId;
+      if (branchIds.length === 0) {
+        console.warn("⚠️ Agent has no assigned branches");
+        return PaginationUtil.formatPaginationResult([], 0, page, limit);
       }
 
-      console.log("✅ Agent scope applied - filtered to agentId:", userId);
+      where.agentId = userId;
+      where.branchId = { in: branchIds };
+
+      console.log(`✅ Agent scope applied - filtered to branches: ${branchIds.join(', ')}`);
     } else if (userRole === UserRole.COMPANY_ADMIN) {
       if (query.branchId) {
         where.branchId = query.branchId;
@@ -235,13 +380,30 @@ export class CollectionsService {
       where.status = query.status;
     }
 
+    // Date handling
     if (query.startDate || query.endDate) {
       where.collectionDate = {};
+      
       if (query.startDate) {
-        where.collectionDate.gte = new Date(query.startDate);
+        try {
+          const startDate = new Date(query.startDate);
+          startDate.setHours(0, 0, 0, 0);
+          where.collectionDate.gte = startDate;
+          console.log("📅 Start date filter:", startDate);
+        } catch (error) {
+          console.error("❌ Invalid start date:", query.startDate);
+        }
       }
+      
       if (query.endDate) {
-        where.collectionDate.lte = new Date(query.endDate);
+        try {
+          const endDate = new Date(query.endDate);
+          endDate.setHours(23, 59, 59, 999);
+          where.collectionDate.lte = endDate;
+          console.log("📅 End date filter:", endDate);
+        } catch (error) {
+          console.error("❌ Invalid end date:", query.endDate);
+        }
       }
     }
 
@@ -255,7 +417,7 @@ export class CollectionsService {
       };
     }
 
-    console.log("Final where clause:", JSON.stringify(where, null, 2));
+    console.log("🔍 Final where clause:", JSON.stringify(where, null, 2));
 
     const [collections, total] = await Promise.all([
       prisma.collection.findMany({
@@ -297,7 +459,7 @@ export class CollectionsService {
             select: {
               id: true,
               name: true,
-              company: {  // ✅ Include company info for super admin
+              company: {
                 select: {
                   id: true,
                   name: true,
@@ -310,12 +472,18 @@ export class CollectionsService {
       prisma.collection.count({ where }),
     ]);
 
+    // ✅ Add isRead flag to each collection
+    const collectionsWithReadStatus = collections.map(collection => ({
+      ...collection,
+      isRead: userId ? collection.viewedBy.includes(userId) : true
+    }));
+
     console.log(
       `✅ Found ${collections.length} collections out of ${total} total`
     );
 
     return PaginationUtil.formatPaginationResult(
-      collections,
+      collectionsWithReadStatus,
       total,
       page,
       limit
@@ -324,26 +492,29 @@ export class CollectionsService {
 
   async getById(
     id: string,
-    companyId: string | null,  // ✅ Can be null for SUPER_ADMIN
+    companyId: string | null,
     userRole: UserRole,
     userId?: string
   ) {
     const where: any = { id };
 
-    // ✅ Only filter by companyId if not SUPER_ADMIN
     if (companyId !== null) {
       where.companyId = companyId;
     }
 
-    // ✅ Agents can only see their own collections
     if (userRole === UserRole.AGENT) {
       if (!userId) {
         throw new Error("Agent ID is required");
       }
+
+      const agentBranches = await this.getAgentBranches(userId);
+      const branchIds = agentBranches.map(b => b.id);
+
       where.agentId = userId;
+      where.branchId = { in: branchIds };
+      
       console.log(
-        "✅ Agent accessing collection - filtered to agentId:",
-        userId
+        "✅ Agent accessing collection - filtered to assigned branches"
       );
     }
 
@@ -396,7 +567,7 @@ export class CollectionsService {
             id: true,
             name: true,
             address: true,
-            company: {  // ✅ Include company info
+            company: {
               select: {
                 id: true,
                 name: true,
@@ -412,12 +583,20 @@ export class CollectionsService {
       throw new Error("Collection not found or you do not have access");
     }
 
-    return collection;
+    // ✅ Mark as read when user views the collection
+    if (userId) {
+      await this.markAsRead(id, userId);
+    }
+
+    return {
+      ...collection,
+      isRead: userId ? collection.viewedBy.includes(userId) : true
+    };
   }
 
   async update(
     id: string,
-    companyId: string | null,  // ✅ Can be null for SUPER_ADMIN
+    companyId: string | null,
     data: {
       amount?: number;
       status?: CollectionStatus;
@@ -426,7 +605,6 @@ export class CollectionsService {
     updatedBy: string,
     userRole: UserRole
   ) {
-    // Only company admin and super admin can update collections
     if (
       userRole !== UserRole.COMPANY_ADMIN &&
       userRole !== UserRole.SUPER_ADMIN
@@ -452,7 +630,6 @@ export class CollectionsService {
 
     console.log("📝 Updating collection:", { id, changes: data });
 
-    // If amount is changed, recalculate balance
     if (
       data.amount !== undefined &&
       data.amount !== Number(collection.amount)
@@ -489,7 +666,7 @@ export class CollectionsService {
     }
 
     await AuditLogUtil.log({
-      companyId: collection.companyId,  // ✅ Use collection's actual companyId
+      companyId: collection.companyId,
       userId: updatedBy,
       action: AuditAction.UPDATE,
       entityType: "COLLECTION",
@@ -504,11 +681,10 @@ export class CollectionsService {
 
   async delete(
     id: string,
-    companyId: string | null,  // ✅ Can be null for SUPER_ADMIN
+    companyId: string | null,
     deletedBy: string,
     userRole: UserRole
   ) {
-    // Only company admin and super admin can delete collections
     if (
       userRole !== UserRole.COMPANY_ADMIN &&
       userRole !== UserRole.SUPER_ADMIN
@@ -538,7 +714,6 @@ export class CollectionsService {
       status: collection.status,
     });
 
-    // Reverse the balance change if collection was successful
     if (collection.status !== CollectionStatus.MISSED) {
       const currentBalance = Number(collection.susuAccount.balance);
       const newBalance = currentBalance - Number(collection.amount);
@@ -561,7 +736,7 @@ export class CollectionsService {
     }
 
     await AuditLogUtil.log({
-      companyId: collection.companyId,  // ✅ Use collection's actual companyId
+      companyId: collection.companyId,
       userId: deletedBy,
       action: AuditAction.DELETE,
       entityType: "COLLECTION",
@@ -574,17 +749,16 @@ export class CollectionsService {
   }
 
   async getStats(
-    companyId: string | null,  // ✅ Can be null for SUPER_ADMIN
+    companyId: string | null,
     filters: {
-      startDate?: Date;
-      endDate?: Date;
+      startDate?: string;
+      endDate?: string;
       branchId?: string;
       agentId?: string;
     }
   ) {
     const where: any = {};
 
-    // ✅ Only set companyId if not null (SUPER_ADMIN can see all companies)
     if (companyId !== null) {
       where.companyId = companyId;
     }
@@ -599,13 +773,29 @@ export class CollectionsService {
 
     if (filters.startDate || filters.endDate) {
       where.collectionDate = {};
+      
       if (filters.startDate) {
-        where.collectionDate.gte = filters.startDate;
+        try {
+          const startDate = new Date(filters.startDate);
+          startDate.setHours(0, 0, 0, 0);
+          where.collectionDate.gte = startDate;
+        } catch (error) {
+          console.error("❌ Invalid start date in stats:", filters.startDate);
+        }
       }
+      
       if (filters.endDate) {
-        where.collectionDate.lte = filters.endDate;
+        try {
+          const endDate = new Date(filters.endDate);
+          endDate.setHours(23, 59, 59, 999);
+          where.collectionDate.lte = endDate;
+        } catch (error) {
+          console.error("❌ Invalid end date in stats:", filters.endDate);
+        }
       }
     }
+
+    console.log("📊 Stats where clause:", JSON.stringify(where, null, 2));
 
     const [total, collected, missed, partial] = await Promise.all([
       prisma.collection.aggregate({

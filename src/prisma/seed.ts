@@ -1,4 +1,4 @@
-// src/prisma/seed.ts
+// src/prisma/seed.ts - FIXED FOR MULTI-BRANCH
 import { PrismaClient } from "@prisma/client";
 import { BcryptUtil } from "../utils/bcrypt.util";
 import {
@@ -112,10 +112,11 @@ async function main() {
   console.log("✅ Branches created:", branches.length);
 
   // ============================================
-  // AGENTS (2 agents per branch)
+  // AGENTS (5 agents with multi-branch assignments)
   // ============================================
   const agentPassword = await BcryptUtil.hash("Agent@123");
 
+  // ✅ FIXED: Create agents WITHOUT branchId
   const agents = await Promise.all([
     // Accra agents
     prisma.user.create({
@@ -127,7 +128,6 @@ async function main() {
         phone: "+233501234567",
         role: UserRole.AGENT,
         companyId: demoCompany.id,
-        branchId: branches[0].id,
         isActive: true,
       },
     }),
@@ -140,7 +140,6 @@ async function main() {
         phone: "+233502234567",
         role: UserRole.AGENT,
         companyId: demoCompany.id,
-        branchId: branches[0].id,
         isActive: true,
       },
     }),
@@ -154,7 +153,6 @@ async function main() {
         phone: "+233503234567",
         role: UserRole.AGENT,
         companyId: demoCompany.id,
-        branchId: branches[1].id,
         isActive: true,
       },
     }),
@@ -167,11 +165,10 @@ async function main() {
         phone: "+233504234567",
         role: UserRole.AGENT,
         companyId: demoCompany.id,
-        branchId: branches[1].id,
         isActive: true,
       },
     }),
-    // Takoradi agents
+    // Takoradi agent
     prisma.user.create({
       data: {
         email: "yaw.agent@demo.com",
@@ -181,13 +178,45 @@ async function main() {
         phone: "+233505234567",
         role: UserRole.AGENT,
         companyId: demoCompany.id,
-        branchId: branches[2].id,
         isActive: true,
       },
     }),
   ]);
 
   console.log("✅ Agents created:", agents.length);
+
+  // ✅ NEW: Create branch assignments for agents
+  await prisma.agentBranchAssignment.createMany({
+    data: [
+      // Kwame -> Accra Main Branch only
+      { userId: agents[0].id, branchId: branches[0].id },
+      // Ama -> Accra Main Branch only
+      { userId: agents[1].id, branchId: branches[0].id },
+      // Kofi -> Kumasi Branch only
+      { userId: agents[2].id, branchId: branches[1].id },
+      // Akua -> Both Kumasi and Takoradi (multi-branch agent!)
+      { userId: agents[3].id, branchId: branches[1].id },
+      { userId: agents[3].id, branchId: branches[2].id },
+      // Yaw -> Takoradi Branch only
+      { userId: agents[4].id, branchId: branches[2].id },
+    ],
+  });
+
+  console.log("✅ Agent branch assignments created");
+
+  // ✅ Load agents with their assigned branches for later use
+  const agentsWithBranches = await prisma.user.findMany({
+    where: {
+      id: { in: agents.map(a => a.id) }
+    },
+    include: {
+      assignedBranches: {
+        include: {
+          branch: true
+        }
+      }
+    }
+  });
 
   // ============================================
   // SUSU PLANS (Various types)
@@ -260,99 +289,21 @@ async function main() {
   // ============================================
   const customerData = [
     // Accra customers
-    {
-      branch: 0,
-      firstName: "Kwame",
-      lastName: "Mensah",
-      phone: "+233541234567",
-      email: "kwame@example.com",
-    },
-    {
-      branch: 0,
-      firstName: "Akua",
-      lastName: "Osei",
-      phone: "+233542234567",
-      email: "akua@example.com",
-    },
-    {
-      branch: 0,
-      firstName: "Kofi",
-      lastName: "Adomako",
-      phone: "+233543234567",
-      email: "kofi@example.com",
-    },
-    {
-      branch: 0,
-      firstName: "Ama",
-      lastName: "Frimpong",
-      phone: "+233544234567",
-      email: "ama@example.com",
-    },
-    {
-      branch: 0,
-      firstName: "Yaw",
-      lastName: "Darko",
-      phone: "+233545234567",
-      email: "yaw@example.com",
-    },
+    { branch: 0, firstName: "Kwame", lastName: "Mensah", phone: "+233541234567", email: "kwame@example.com" },
+    { branch: 0, firstName: "Akua", lastName: "Osei", phone: "+233542234567", email: "akua@example.com" },
+    { branch: 0, firstName: "Kofi", lastName: "Adomako", phone: "+233543234567", email: "kofi@example.com" },
+    { branch: 0, firstName: "Ama", lastName: "Frimpong", phone: "+233544234567", email: "ama@example.com" },
+    { branch: 0, firstName: "Yaw", lastName: "Darko", phone: "+233545234567", email: "yaw@example.com" },
     // Kumasi customers
-    {
-      branch: 1,
-      firstName: "Abena",
-      lastName: "Yeboah",
-      phone: "+233546234567",
-      email: "abena@example.com",
-    },
-    {
-      branch: 1,
-      firstName: "Kwasi",
-      lastName: "Appiah",
-      phone: "+233547234567",
-      email: "kwasi@example.com",
-    },
-    {
-      branch: 1,
-      firstName: "Adjoa",
-      lastName: "Sarpong",
-      phone: "+233548234567",
-      email: "adjoa@example.com",
-    },
-    {
-      branch: 1,
-      firstName: "Kwabena",
-      lastName: "Boadi",
-      phone: "+233549234567",
-      email: "kwabena@example.com",
-    },
-    {
-      branch: 1,
-      firstName: "Efua",
-      lastName: "Kyei",
-      phone: "+233540234567",
-      email: "efua@example.com",
-    },
+    { branch: 1, firstName: "Abena", lastName: "Yeboah", phone: "+233546234567", email: "abena@example.com" },
+    { branch: 1, firstName: "Kwasi", lastName: "Appiah", phone: "+233547234567", email: "kwasi@example.com" },
+    { branch: 1, firstName: "Adjoa", lastName: "Sarpong", phone: "+233548234567", email: "adjoa@example.com" },
+    { branch: 1, firstName: "Kwabena", lastName: "Boadi", phone: "+233549234567", email: "kwabena@example.com" },
+    { branch: 1, firstName: "Efua", lastName: "Kyei", phone: "+233540234567", email: "efua@example.com" },
     // Takoradi customers
-    {
-      branch: 2,
-      firstName: "Kojo",
-      lastName: "Ansah",
-      phone: "+233551234567",
-      email: "kojo@example.com",
-    },
-    {
-      branch: 2,
-      firstName: "Afua",
-      lastName: "Asiedu",
-      phone: "+233552234567",
-      email: "afua@example.com",
-    },
-    {
-      branch: 2,
-      firstName: "Fiifi",
-      lastName: "Eshun",
-      phone: "+233553234567",
-      email: "fiifi@example.com",
-    },
+    { branch: 2, firstName: "Kojo", lastName: "Ansah", phone: "+233551234567", email: "kojo@example.com" },
+    { branch: 2, firstName: "Afua", lastName: "Asiedu", phone: "+233552234567", email: "afua@example.com" },
+    { branch: 2, firstName: "Fiifi", lastName: "Eshun", phone: "+233553234567", email: "fiifi@example.com" },
   ];
 
   const customers = await Promise.all(
@@ -382,7 +333,6 @@ async function main() {
 
   for (let i = 0; i < customers.length; i++) {
     const customer = customers[i];
-    // Each customer gets 1 or 2 accounts
     const accountCount = i % 3 === 0 ? 2 : 1;
 
     for (let j = 0; j < accountCount; j++) {
@@ -392,11 +342,9 @@ async function main() {
           customerId: customer.id,
           susuPlanId: plan.id,
           accountNumber: AccountNumberUtil.generate("SUS"),
-          balance: 0, // We'll update this with collections
+          balance: 0,
           targetAmount: plan.targetAmount || Number(plan.amount) * 30,
-          startDate: new Date(
-            Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000
-          ), // Random date in last 30 days
+          startDate: new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000),
           isActive: true,
         },
       });
@@ -417,33 +365,30 @@ async function main() {
   let collectionsCreated = 0;
   let totalAmount = 0;
 
-  // Create collections for last 14 days
   for (let dayOffset = 0; dayOffset < 14; dayOffset++) {
     const collectionDate = new Date(
       fourteenDaysAgo.getTime() + dayOffset * 24 * 60 * 60 * 1000
     );
 
-    // Each active account has a chance of collection
     for (const account of susuAccounts) {
-      // Find which branch this account belongs to
       const customer = customers.find((c) => c.id === account.customerId);
       if (!customer) continue;
 
       const branch = branches.find((b) => b.id === customer.branchId);
       if (!branch) continue;
 
-      // Find an agent from this branch
-      const branchAgents = agents.filter((a) => a.branchId === branch.id);
+      // ✅ FIXED: Find agents assigned to this branch
+      const branchAgents = agentsWithBranches.filter((agent) => 
+        agent.assignedBranches.some(ab => ab.branchId === branch.id)
+      );
+      
       if (branchAgents.length === 0) continue;
 
-      const agent =
-        branchAgents[Math.floor(Math.random() * branchAgents.length)];
+      const agent = branchAgents[Math.floor(Math.random() * branchAgents.length)];
       const plan = susuPlans.find((p) => p.id === account.susuPlanId);
       if (!plan) continue;
 
-      // 80% chance of collection happening
       if (Math.random() < 0.8) {
-        // 90% collected, 5% partial, 5% missed
         const rand = Math.random();
         let status: CollectionStatus;
         let amount: number;
@@ -453,13 +398,12 @@ async function main() {
           amount = Number(plan.amount);
         } else if (rand < 0.95) {
           status = CollectionStatus.PARTIAL;
-          amount = Number(plan.amount) * 0.5; // Half payment
+          amount = Number(plan.amount) * 0.5;
         } else {
           status = CollectionStatus.MISSED;
           amount = 0;
         }
 
-        // Create collection
         await prisma.collection.create({
           data: {
             companyId: demoCompany.id,
@@ -482,7 +426,6 @@ async function main() {
 
         collectionsCreated++;
 
-        // Update account balance and create transaction if money was collected
         if (amount > 0) {
           const currentBalance = Number(account.balance);
           const newBalance = currentBalance + amount;
@@ -506,17 +449,13 @@ async function main() {
           });
 
           totalAmount += amount;
-
-          // Update the account object for next iteration
           account.balance = new Decimal(newBalance);
         }
       }
     }
   }
 
-  console.log(
-    `✅ Collections created: ${collectionsCreated} (Total: GH₵${totalAmount.toFixed(2)})`
-  );
+  console.log(`✅ Collections created: ${collectionsCreated} (Total: GH₵${totalAmount.toFixed(2)})`);
 
   // ============================================
   // DAILY SUMMARIES (for last 7 days)
@@ -526,57 +465,47 @@ async function main() {
   const sevenDaysAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
 
   for (let dayOffset = 0; dayOffset < 7; dayOffset++) {
-    const summaryDate = new Date(
-      sevenDaysAgo.getTime() + dayOffset * 24 * 60 * 60 * 1000
-    );
+    const summaryDate = new Date(sevenDaysAgo.getTime() + dayOffset * 24 * 60 * 60 * 1000);
     summaryDate.setHours(0, 0, 0, 0);
 
-    for (const agent of agents) {
-      const branch = branches.find((b) => b.id === agent.branchId);
-      if (!branch) continue;
+    for (const agent of agentsWithBranches) {
+      // ✅ FIXED: Create summary for each assigned branch
+      for (const assignment of agent.assignedBranches) {
+        const branch = assignment.branch;
 
-      // Get collections for this agent on this date
-      const agentCollections = await prisma.collection.findMany({
-        where: {
-          agentId: agent.id,
-          collectionDate: {
-            gte: summaryDate,
-            lt: new Date(summaryDate.getTime() + 24 * 60 * 60 * 1000),
-          },
-        },
-      });
-
-      if (agentCollections.length > 0) {
-        const totalExpected = agentCollections.reduce(
-          (sum, c) => sum + Number(c.expectedAmount || 0),
-          0
-        );
-        const totalCollected = agentCollections.reduce(
-          (sum, c) => sum + Number(c.amount),
-          0
-        );
-        const missedCount = agentCollections.filter(
-          (c) => c.status === CollectionStatus.MISSED
-        ).length;
-        const uniqueCustomers = new Set(
-          agentCollections.map((c) => c.customerId)
-        ).size;
-
-        await prisma.dailySummary.create({
-          data: {
-            companyId: demoCompany.id,
-            branchId: branch.id,
+        const agentCollections = await prisma.collection.findMany({
+          where: {
             agentId: agent.id,
-            date: summaryDate,
-            totalExpected: totalExpected,
-            totalCollected: totalCollected,
-            totalCustomers: uniqueCustomers,
-            collectionsCount: agentCollections.length,
-            missedCount: missedCount,
-            isLocked: dayOffset < 5, // Lock summaries older than 2 days
-            notes: `Summary for ${agent.firstName} ${agent.lastName}`,
+            branchId: branch.id,
+            collectionDate: {
+              gte: summaryDate,
+              lt: new Date(summaryDate.getTime() + 24 * 60 * 60 * 1000),
+            },
           },
         });
+
+        if (agentCollections.length > 0) {
+          const totalExpected = agentCollections.reduce((sum, c) => sum + Number(c.expectedAmount || 0), 0);
+          const totalCollected = agentCollections.reduce((sum, c) => sum + Number(c.amount), 0);
+          const missedCount = agentCollections.filter((c) => c.status === CollectionStatus.MISSED).length;
+          const uniqueCustomers = new Set(agentCollections.map((c) => c.customerId)).size;
+
+          await prisma.dailySummary.create({
+            data: {
+              companyId: demoCompany.id,
+              branchId: branch.id,
+              agentId: agent.id,
+              date: summaryDate,
+              totalExpected: totalExpected,
+              totalCollected: totalCollected,
+              totalCustomers: uniqueCustomers,
+              collectionsCount: agentCollections.length,
+              missedCount: missedCount,
+              isLocked: dayOffset < 5,
+              notes: `Summary for ${agent.firstName} ${agent.lastName} at ${branch.name}`,
+            },
+          });
+        }
       }
     }
   }
@@ -599,6 +528,7 @@ async function main() {
     prisma.collection.count(),
     prisma.transaction.count(),
     prisma.dailySummary.count(),
+    prisma.agentBranchAssignment.count(),
   ]);
 
   console.log(`Total Users: ${stats[0]}`);
@@ -610,15 +540,13 @@ async function main() {
   console.log(`Total Collections: ${stats[6]}`);
   console.log(`Total Transactions: ${stats[7]}`);
   console.log(`Total Daily Summaries: ${stats[8]}`);
+  console.log(`Total Agent-Branch Assignments: ${stats[9]}`);
 
-  // Calculate total balance across all accounts
   const totalBalances = await prisma.susuAccount.aggregate({
     _sum: { balance: true },
   });
 
-  console.log(
-    `Total Money in System: GH₵${Number(totalBalances._sum.balance || 0).toFixed(2)}`
-  );
+  console.log(`Total Money in System: GH₵${Number(totalBalances._sum.balance || 0).toFixed(2)}`);
 
   console.log("\n🎉 Seeding completed successfully!");
   console.log("\n📝 Login Credentials:");
@@ -639,6 +567,7 @@ async function main() {
   console.log("│     - ama.agent@demo.com / Agent@123            │");
   console.log("│   Kumasi Branch:                                │");
   console.log("│     - kofi.agent@demo.com / Agent@123           │");
+  console.log("│   Kumasi + Takoradi (Multi-branch!):            │");
   console.log("│     - akua.agent@demo.com / Agent@123           │");
   console.log("│   Takoradi Branch:                              │");
   console.log("│     - yaw.agent@demo.com / Agent@123            │");
@@ -646,13 +575,11 @@ async function main() {
   console.log("└─────────────────────────────────────────────────┘\n");
 
   console.log("💡 Tips for Testing:");
-  console.log("  • Login as different roles to see different views");
-  console.log("  • Agents can only see their own collections");
+  console.log("  • Login as Akua to see multi-branch agent (2 branches!)");
+  console.log("  • Agents can only see their assigned branch collections");
   console.log("  • Company admin can see all data for Demo Company");
   console.log("  • Super admin can see everything");
-  console.log("  • Check dashboard for statistics and charts");
-  console.log("  • View reports to see performance metrics");
-  console.log("  • Try recording new collections as an agent\n");
+  console.log("  • Check dashboard for statistics and charts\n");
 }
 
 main()

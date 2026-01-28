@@ -1,10 +1,11 @@
 // src/modules/users/users.service.ts
-import { prisma } from '../../config/database';
-import { BcryptUtil } from '../../utils/bcrypt.util';
-import { PaginationUtil } from '../../utils/pagination.util';
-import { AuditLogUtil } from '../../utils/audit-log.util';
-import { UserRole, AuditAction } from '../../types/enums';
-import { IPaginationQuery } from '../../types/interfaces';
+import { prisma } from "../../config/database";
+import { BcryptUtil } from "../../utils/bcrypt.util";
+import { PaginationUtil } from "../../utils/pagination.util";
+import { AuditLogUtil } from "../../utils/audit-log.util";
+import { UserRole, AuditAction } from "../../types/enums";
+import { IPaginationQuery } from "../../types/interfaces";
+import { FileUploadUtil } from "../../utils/file-upload.util";
 
 export class UsersService {
   async create(
@@ -16,9 +17,11 @@ export class UsersService {
       lastName: string;
       phone?: string;
       role: UserRole;
-      branchId?: string;
+      branchIds?: string[];
+      photoUrl?: string; // ✅ NEW
+      photoPublicId?: string; // ✅ NEW
     },
-    createdBy: string
+    createdBy: string,
   ) {
     // Check if user already exists
     const existingUser = await prisma.user.findUnique({
@@ -26,63 +29,83 @@ export class UsersService {
     });
 
     if (existingUser) {
-      throw new Error('User with this email already exists');
+      throw new Error("User with this email already exists");
     }
 
-    // Validate branch if provided
-    if (data.branchId) {
-      const branch = await prisma.branch.findFirst({
-        where: { id: data.branchId, companyId },
+    // Validate branches if provided
+    if (data.branchIds && data.branchIds.length > 0) {
+      const branches = await prisma.branch.findMany({
+        where: {
+          id: { in: data.branchIds },
+          companyId,
+        },
       });
 
-      if (!branch) {
-        throw new Error('Branch not found');
+      if (branches.length !== data.branchIds.length) {
+        throw new Error("One or more branches not found");
       }
     }
 
     // Hash password
     const hashedPassword = await BcryptUtil.hash(data.password);
 
-    const user = await prisma.user.create({
-      data: {
-        email: data.email,
-        password: hashedPassword,
-        firstName: data.firstName,
-        lastName: data.lastName,
-        phone: data.phone,
-        role: data.role,
-        companyId,
-        branchId: data.branchId,
-      },
-      select: {
-        id: true,
-        email: true,
-        firstName: true,
-        lastName: true,
-        phone: true,
-        role: true,
-        isActive: true,
-        branchId: true,
-        branch: {
-          select: {
-            id: true,
-            name: true,
-          },
+    // Create user with branch assignments in a transaction
+    const user = await prisma.$transaction(async (tx) => {
+      const newUser = await tx.user.create({
+        data: {
+          email: data.email,
+          password: hashedPassword,
+          firstName: data.firstName,
+          lastName: data.lastName,
+          phone: data.phone,
+          role: data.role,
+          companyId,
+          photoUrl: data.photoUrl, // ✅ NEW
+          photoPublicId: data.photoPublicId, // ✅ NEW
         },
-        createdAt: true,
-      },
+        select: {
+          id: true,
+          email: true,
+          firstName: true,
+          lastName: true,
+          phone: true,
+          role: true,
+          isActive: true,
+          photoUrl: true, // ✅ NEW
+          photoPublicId: true, // ✅ NEW
+          createdAt: true,
+        },
+      });
+
+      // Create branch assignments if provided
+      if (data.branchIds && data.branchIds.length > 0) {
+        await tx.agentBranchAssignment.createMany({
+          data: data.branchIds.map((branchId) => ({
+            userId: newUser.id,
+            branchId,
+            assignedBy: createdBy,
+          })),
+        });
+      }
+
+      return newUser;
     });
 
     await AuditLogUtil.log({
       companyId,
       userId: createdBy,
       action: AuditAction.CREATE,
-      entityType: 'USER',
+      entityType: "USER",
       entityId: user.id,
-      changes: { email: data.email, role: data.role },
+      changes: {
+        email: data.email,
+        role: data.role,
+        branchIds: data.branchIds,
+        hasPhoto: !!data.photoUrl, // ✅ Log if photo was uploaded
+      },
     });
 
-    return user;
+    return this.getById(user.id, companyId);
   }
 
   async getAll(companyId: string | null, query: IPaginationQuery) {
@@ -98,9 +121,9 @@ export class UsersService {
 
     if (query.search) {
       where.OR = [
-        { firstName: { contains: query.search, mode: 'insensitive' } },
-        { lastName: { contains: query.search, mode: 'insensitive' } },
-        { email: { contains: query.search, mode: 'insensitive' } },
+        { firstName: { contains: query.search, mode: "insensitive" } },
+        { lastName: { contains: query.search, mode: "insensitive" } },
+        { email: { contains: query.search, mode: "insensitive" } },
       ];
     }
 
@@ -108,8 +131,13 @@ export class UsersService {
       where.role = query.role;
     }
 
+    // ✅ Filter by branch if provided (show agents assigned to specific branch)
     if (query.branchId) {
-      where.branchId = query.branchId;
+      where.assignedBranches = {
+        some: {
+          branchId: query.branchId,
+        },
+      };
     }
 
     if (query.isActive !== undefined) {
@@ -131,15 +159,27 @@ export class UsersService {
           role: true,
           isActive: true,
           lastLogin: true,
-          branchId: true,
-          companyId: true, // ✅ Include companyId for SUPER_ADMIN view
-          branch: {
+          companyId: true,
+          // ✅ Include assigned branches
+          assignedBranches: {
             select: {
               id: true,
-              name: true,
+              branchId: true,
+              assignedAt: true,
+              branch: {
+                select: {
+                  id: true,
+                  name: true,
+                  address: true,
+                  isActive: true,
+                },
+              },
+            },
+            orderBy: {
+              assignedAt: "desc",
             },
           },
-          company: { // ✅ Include company for SUPER_ADMIN view
+          company: {
             select: {
               id: true,
               name: true,
@@ -156,10 +196,10 @@ export class UsersService {
     return PaginationUtil.formatPaginationResult(users, total, page, limit);
   }
 
+  // Update getById to include photo fields
   async getById(id: string, companyId: string | null) {
     const where: any = { id };
 
-    // ✅ Only filter by companyId if not SUPER_ADMIN
     if (companyId !== null) {
       where.companyId = companyId;
     }
@@ -175,13 +215,27 @@ export class UsersService {
         role: true,
         isActive: true,
         lastLogin: true,
-        branchId: true,
         companyId: true,
-        branch: {
+        photoUrl: true, // ✅ NEW
+        photoPublicId: true, // ✅ NEW
+        assignedBranches: {
           select: {
             id: true,
-            name: true,
-            address: true,
+            branchId: true,
+            assignedAt: true,
+            assignedBy: true,
+            branch: {
+              select: {
+                id: true,
+                name: true,
+                address: true,
+                phone: true,
+                isActive: true,
+              },
+            },
+          },
+          orderBy: {
+            assignedAt: "desc",
           },
         },
         company: {
@@ -203,7 +257,7 @@ export class UsersService {
     });
 
     if (!user) {
-      throw new Error('User not found');
+      throw new Error("User not found");
     }
 
     return user;
@@ -216,92 +270,140 @@ export class UsersService {
       firstName?: string;
       lastName?: string;
       phone?: string;
-      branchId?: string | null;
+      branchIds?: string[];
       isActive?: boolean;
+      photoUrl?: string; // ✅ NEW
+      photoPublicId?: string; // ✅ NEW
     },
-    updatedBy: string
+    updatedBy: string,
   ) {
     const where: any = { id };
 
-    // ✅ Only filter by companyId if not SUPER_ADMIN
     if (companyId !== null) {
       where.companyId = companyId;
     }
 
     const user = await prisma.user.findFirst({
       where,
-    });
-
-    if (!user) {
-      throw new Error('User not found');
-    }
-
-    // Validate branch if provided
-    if (data.branchId) {
-      const branch = await prisma.branch.findFirst({
-        where: { 
-          id: data.branchId, 
-          companyId: user.companyId! // Use the user's companyId
-        },
-      });
-
-      if (!branch) {
-        throw new Error('Branch not found');
-      }
-    }
-
-    const updated = await prisma.user.update({
-      where: { id },
-      data,
       select: {
         id: true,
-        email: true,
-        firstName: true,
-        lastName: true,
-        phone: true,
-        role: true,
-        isActive: true,
-        branchId: true,
-        branch: {
-          select: {
-            id: true,
-            name: true,
-          },
-        },
+        companyId: true,
+        photoUrl: true,
+        photoPublicId: true, // ✅ Get old photo info
       },
     });
 
-    // ✅ Use user's companyId for audit log
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    // Validate branches if provided
+    if (data.branchIds && data.branchIds.length > 0) {
+      const branches = await prisma.branch.findMany({
+        where: {
+          id: { in: data.branchIds },
+          companyId: user.companyId!,
+        },
+      });
+
+      if (branches.length !== data.branchIds.length) {
+        throw new Error("One or more branches not found");
+      }
+    }
+
+    // ✅ Delete old photo from Cloudinary if new one is uploaded
+    if (
+      data.photoUrl &&
+      user.photoPublicId &&
+      data.photoUrl !== user.photoUrl
+    ) {
+      try {
+        await FileUploadUtil.deleteImage(user.photoPublicId);
+      } catch (error) {
+        console.error("Error deleting old photo:", error);
+        // Continue even if deletion fails
+      }
+    }
+
+    // Update user and branch assignments in a transaction
+    await prisma.$transaction(async (tx) => {
+      const updatedUser = await tx.user.update({
+        where: { id },
+        data: {
+          firstName: data.firstName,
+          lastName: data.lastName,
+          phone: data.phone,
+          isActive: data.isActive,
+          photoUrl: data.photoUrl, // ✅ NEW
+          photoPublicId: data.photoPublicId, // ✅ NEW
+        },
+        select: {
+          id: true,
+          email: true,
+          firstName: true,
+          lastName: true,
+          phone: true,
+          role: true,
+          isActive: true,
+          photoUrl: true, // ✅ NEW
+          photoPublicId: true, // ✅ NEW
+        },
+      });
+
+      // Update branch assignments if provided
+      if (data.branchIds !== undefined) {
+        await tx.agentBranchAssignment.deleteMany({
+          where: { userId: id },
+        });
+
+        if (data.branchIds.length > 0) {
+          await tx.agentBranchAssignment.createMany({
+            data: data.branchIds.map((branchId) => ({
+              userId: id,
+              branchId,
+              assignedBy: updatedBy,
+            })),
+          });
+        }
+      }
+
+      return updatedUser; // optional, safe to keep
+    });
     await AuditLogUtil.log({
       companyId: user.companyId!,
       userId: updatedBy,
       action: AuditAction.UPDATE,
-      entityType: 'USER',
+      entityType: "USER",
       entityId: id,
       changes: data,
     });
 
-    return updated;
+    return this.getById(id, companyId);
   }
 
   async delete(id: string, companyId: string | null, deletedBy: string) {
     const where: any = { id };
 
-    // ✅ Only filter by companyId if not SUPER_ADMIN
     if (companyId !== null) {
       where.companyId = companyId;
     }
 
     const user = await prisma.user.findFirst({
       where,
+      select: {
+        id: true,
+        role: true,
+        companyId: true,
+        photoUrl: true,
+        photoPublicId: true, // ✅ Get photo info for deletion
+      },
     });
 
     if (!user) {
-      throw new Error('User not found');
+      throw new Error("User not found");
     }
 
     if (user.role === UserRole.COMPANY_ADMIN) {
-      // Check if this is the only company admin
       const adminCount = await prisma.user.count({
         where: {
           companyId: user.companyId,
@@ -311,29 +413,38 @@ export class UsersService {
       });
 
       if (adminCount <= 1) {
-        throw new Error('Cannot delete the only active company admin');
+        throw new Error("Cannot delete the only active company admin");
+      }
+    }
+
+    // ✅ Delete user photo from Cloudinary if exists
+    if (user.photoPublicId) {
+      try {
+        await FileUploadUtil.deleteImage(user.photoPublicId);
+      } catch (error) {
+        console.error("Error deleting user photo:", error);
+        // Continue even if deletion fails
       }
     }
 
     await prisma.user.delete({ where: { id } });
 
-    // ✅ Use user's companyId for audit log
     await AuditLogUtil.log({
       companyId: user.companyId!,
       userId: deletedBy,
       action: AuditAction.DELETE,
-      entityType: 'USER',
+      entityType: "USER",
       entityId: id,
     });
 
-    return { message: 'User deleted successfully' };
+    return { message: "User deleted successfully" };
   }
 
   async resetPassword(
-    id: string, 
-    companyId: string | null, 
-    newPassword: string, 
-    resetBy: string
+    id: string,
+    companyId: string | null,
+    newPassword: string,
+    resetBy: string,
   ) {
     const where: any = { id };
 
@@ -347,7 +458,7 @@ export class UsersService {
     });
 
     if (!user) {
-      throw new Error('User not found');
+      throw new Error("User not found");
     }
 
     const hashedPassword = await BcryptUtil.hash(newPassword);
@@ -367,11 +478,35 @@ export class UsersService {
       companyId: user.companyId!,
       userId: resetBy,
       action: AuditAction.UPDATE,
-      entityType: 'USER',
+      entityType: "USER",
       entityId: id,
       changes: { passwordReset: true },
     });
 
-    return { message: 'Password reset successfully' };
+    return { message: "Password reset successfully" };
+  }
+
+  // ✅ NEW: Get branches assigned to an agent
+  async getAgentBranches(userId: string) {
+    const assignments = await prisma.agentBranchAssignment.findMany({
+      where: { userId },
+      include: {
+        branch: {
+          select: {
+            id: true,
+            name: true,
+            address: true,
+            phone: true,
+            isActive: true,
+            companyId: true,
+          },
+        },
+      },
+      orderBy: {
+        assignedAt: "desc",
+      },
+    });
+
+    return assignments.map((a) => a.branch);
   }
 }

@@ -1,4 +1,6 @@
 // src/modules/branches/branches.controller.ts
+// ✅ Updated to pass user role and ID for agent-specific filtering
+
 import { Response, NextFunction } from 'express';
 import { BranchesService } from './branches.service';
 import { ResponseUtil } from '../../utils/response.util';
@@ -17,7 +19,6 @@ export class BranchesController {
     next: NextFunction
   ): Promise<void> => {
     try {
-      // ✅ Super admin needs to specify companyId in request body
       const companyId = req.user!.companyId || req.body.companyId;
 
       if (!companyId) {
@@ -42,8 +43,22 @@ export class BranchesController {
     next: NextFunction
   ): Promise<void> => {
     try {
-      const companyId = req.user!.companyId;  // ✅ Can be null for SUPER_ADMIN
-      const result = await this.branchesService.getAll(companyId, req.query);
+      const companyId = req.user!.companyId;
+
+      // ✅ Pass user role and ID for agent-specific filtering
+      const queryWithUser = {
+        ...req.query,
+        userRole: req.user!.role,
+        userId: req.user!.id,
+      };
+
+      console.log('🏢 Fetching branches:', {
+        companyId,
+        userRole: req.user!.role,
+        userId: req.user!.id,
+      });
+
+      const result = await this.branchesService.getAll(companyId, queryWithUser);
       ResponseUtil.success(res, result, 'Branches retrieved successfully');
     } catch (error: any) {
       next(error);
@@ -56,8 +71,11 @@ export class BranchesController {
     next: NextFunction
   ): Promise<void> => {
     try {
-      const companyId = req.user!.companyId;  // ✅ Can be null for SUPER_ADMIN
-      const branch = await this.branchesService.getById(req.params.id, companyId);
+      const companyId = req.user!.companyId;
+      const branch = await this.branchesService.getById(
+        req.params.id,
+        companyId
+      );
       ResponseUtil.success(res, branch, 'Branch retrieved successfully');
     } catch (error: any) {
       next(error);
@@ -70,7 +88,7 @@ export class BranchesController {
     next: NextFunction
   ): Promise<void> => {
     try {
-      const companyId = req.user!.companyId;  // ✅ Can be null for SUPER_ADMIN
+      const companyId = req.user!.companyId;
       const branch = await this.branchesService.update(
         req.params.id,
         companyId,
@@ -89,7 +107,7 @@ export class BranchesController {
     next: NextFunction
   ): Promise<void> => {
     try {
-      const companyId = req.user!.companyId;  // ✅ Can be null for SUPER_ADMIN
+      const companyId = req.user!.companyId;
       const result = await this.branchesService.delete(
         req.params.id,
         companyId,
@@ -101,15 +119,41 @@ export class BranchesController {
     }
   };
 
-  getStats = async (
+  // ✅ NEW: Get branches for current agent
+  getMyBranches = async (
     req: IAuthRequest,
     res: Response,
     next: NextFunction
   ): Promise<void> => {
     try {
-      const companyId = req.user!.companyId;  // ✅ Can be null for SUPER_ADMIN
-      const stats = await this.branchesService.getStats(req.params.id, companyId);
-      ResponseUtil.success(res, stats, 'Branch stats retrieved successfully');
+      const branches = await this.branchesService.getAgentBranches(
+        req.user!.id
+      );
+      ResponseUtil.success(
+        res,
+        branches,
+        'Agent branches retrieved successfully'
+      );
+    } catch (error: any) {
+      next(error);
+    }
+  };
+
+  // ✅ NEW: Get agents for a specific branch
+  getBranchAgents = async (
+    req: IAuthRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> => {
+    try {
+      const agents = await this.branchesService.getBranchAgents(
+        req.params.id
+      );
+      ResponseUtil.success(
+        res,
+        agents,
+        'Branch agents retrieved successfully'
+      );
     } catch (error: any) {
       next(error);
     }

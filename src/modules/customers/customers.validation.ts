@@ -1,4 +1,3 @@
-// src/modules/customers/customers.validation.ts
 import Joi from 'joi';
 
 export const customersValidation = {
@@ -6,9 +5,20 @@ export const customersValidation = {
     firstName: Joi.string().required(),
     lastName: Joi.string().required(),
     phone: Joi.string().required(),
-    email: Joi.string().email().optional(),
-    address: Joi.string().optional(),
-    idNumber: Joi.string().optional(),
+
+    email: Joi.string()
+      .email()
+      .allow('', null)
+      .optional(),
+
+    address: Joi.string()
+      .allow('', null)
+      .optional(),
+
+    idNumber: Joi.string()
+      .allow('', null)
+      .optional(),
+
     branchId: Joi.string().uuid().required(),
   }),
 
@@ -16,9 +26,20 @@ export const customersValidation = {
     firstName: Joi.string().optional(),
     lastName: Joi.string().optional(),
     phone: Joi.string().optional(),
-    email: Joi.string().email().optional(),
-    address: Joi.string().optional(),
-    idNumber: Joi.string().optional(),
+
+    email: Joi.string()
+      .email()
+      .allow('', null)
+      .optional(),
+
+    address: Joi.string()
+      .allow('', null)
+      .optional(),
+
+    idNumber: Joi.string()
+      .allow('', null)
+      .optional(),
+
     branchId: Joi.string().uuid().optional(),
     isActive: Joi.boolean().optional(),
   }),

@@ -1,10 +1,11 @@
-// src/modules/auth/auth.service.ts - COMPLETE FILE WITH ALL FIXES
+// src/modules/auth/auth.service.ts - COMPLETE WITH EMAIL INTEGRATION
 import { prisma } from '../../config/database';
 import { BcryptUtil } from '../../utils/bcrypt.util';
 import { JWTUtil } from '../../utils/jwt.util';
 import { AuditLogUtil } from '../../utils/audit-log.util';
 import { UserRole, CompanyStatus, AuditAction } from '../../types/enums';
 import { ITokenPayload } from '../../types/interfaces';
+import { EmailService } from '../../services/email.service';
 import crypto from 'crypto';
 
 export class AuthService {
@@ -91,8 +92,7 @@ export class AuthService {
           lastName: true,
           phone: true,
           role: true,
-          companyId: true,   // ✅ CRITICAL
-          branchId: true,    // ✅ CRITICAL
+          companyId: true,
           isActive: true,
           lastLogin: true,
           createdAt: true,
@@ -112,6 +112,16 @@ export class AuthService {
       });
 
       return { user, company };
+    });
+
+    // ✅ Send welcome email (don't wait for it - fire and forget)
+    EmailService.sendWelcomeEmail(
+      result.user.email,
+      `${result.user.firstName} ${result.user.lastName}`,
+      result.company.name
+    ).catch(error => {
+      console.error('⚠️ Failed to send welcome email:', error);
+      // Don't throw - email failure shouldn't block registration
     });
 
     // Generate tokens
@@ -135,6 +145,8 @@ export class AuthService {
       },
     });
 
+    console.log('✅ Registration successful for:', result.user.email);
+
     return {
       user: result.user,
       tokens: {
@@ -147,47 +159,52 @@ export class AuthService {
   async login(email: string, password: string, ipAddress?: string, userAgent?: string) {
     console.log('🔍 Login attempt for email:', email);
     
-    // Find user - ✅ USING SELECT INSTEAD OF INCLUDE
-     const user = await prisma.user.findUnique({
-    where: { email },
-    select: {
-      id: true,
-      email: true,
-      password: true,
-      firstName: true,
-      lastName: true,
-      phone: true,
-      role: true,
-      isActive: true,
-      lastLogin: true,
-      createdAt: true,
-      updatedAt: true,
-      companyId: true,
-      branchId: true,
-      themeMode: true,        // ✅ Add
-      themeColor: true,       // ✅ Add
-      customPrimary: true,    // ✅ Add
-      customSecondary: true,  // ✅ Add
-      company: {
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          status: true,
-          logo: true,
-          primaryColor: true,
-          secondaryColor: true,
+    // Find user
+    const user = await prisma.user.findUnique({
+      where: { email },
+      select: {
+        id: true,
+        email: true,
+        password: true,
+        firstName: true,
+        lastName: true,
+        phone: true,
+        role: true,
+        isActive: true,
+        lastLogin: true,
+        createdAt: true,
+        updatedAt: true,
+        companyId: true,
+        themeMode: true,
+        themeColor: true,
+        customPrimary: true,
+        customSecondary: true,
+        company: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            status: true,
+            logo: true,
+            primaryColor: true,
+            secondaryColor: true,
+          },
+        },
+        assignedBranches: {
+          select: {
+            id: true,
+            branchId: true,
+            branch: {
+              select: {
+                id: true,
+                name: true,
+                address: true,
+              },
+            },
+          },
         },
       },
-      branch: {
-        select: {
-          id: true,
-          name: true,
-          address: true,
-        },
-      },
-    },
-  });
+    });
 
     if (!user) {
       console.log('❌ User not found');
@@ -195,11 +212,6 @@ export class AuthService {
     }
 
     console.log('✅ User found:', user.email);
-    console.log('🔍 User data check:', {
-      companyId: user.companyId,
-      branchId: user.branchId,
-      hasCompany: !!user.company,
-    });
 
     // Check if user is active
     if (!user.isActive) {
@@ -210,7 +222,7 @@ export class AuthService {
     // Check if company is active (for non-super admins)
     if (user.role !== UserRole.SUPER_ADMIN && user.company?.status !== CompanyStatus.ACTIVE) {
       console.log('❌ Company account is not active:', user.company?.status);
-      throw new Error('Company account is not active');
+      throw new Error('Company account is not active. Please contact support.');
     }
 
     // Verify password
@@ -229,7 +241,7 @@ export class AuthService {
       email: user.email,
       role: user.role as UserRole,
       companyId: user.companyId,
-      branchId: user.branchId,
+      branchId: null,
     };
 
     const accessToken = JWTUtil.generateAccessToken(tokenPayload);
@@ -266,11 +278,7 @@ export class AuthService {
     // Remove password from response
     const { password: _, ...userWithoutPassword } = user;
 
-    console.log('✅ Login response prepared:', {
-      userId: userWithoutPassword.id,
-      companyId: userWithoutPassword.companyId,
-      branchId: userWithoutPassword.branchId,
-    });
+    console.log('✅ Login successful for:', userWithoutPassword.email);
 
     return {
       user: userWithoutPassword,
@@ -341,7 +349,7 @@ export class AuthService {
       email: decoded.email,
       role: decoded.role,
       companyId: decoded.companyId,
-      branchId: decoded.branchId,
+      branchId: null,
     };
 
     const newAccessToken = JWTUtil.generateAccessToken(tokenPayload);
@@ -374,6 +382,8 @@ export class AuthService {
         token: refreshToken,
       },
     });
+
+    console.log('✅ User logged out:', userId);
 
     return { message: 'Logged out successfully' };
   }
@@ -412,56 +422,63 @@ export class AuthService {
       where: { userId },
     });
 
+    console.log('✅ Password changed for user:', user.email);
+
     return { message: 'Password changed successfully' };
   }
 
   async getProfile(userId: string) {
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: {
-      id: true,
-      email: true,
-      firstName: true,
-      lastName: true,
-      phone: true,
-      role: true,
-      isActive: true,
-      lastLogin: true,
-      createdAt: true,
-      updatedAt: true,
-      companyId: true,
-      branchId: true,
-      themeMode: true,        // ✅ Add
-      themeColor: true,       // ✅ Add
-      customPrimary: true,    // ✅ Add
-      customSecondary: true,  // ✅ Add
-      company: {
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          logo: true,
-          primaryColor: true,
-          secondaryColor: true,
-          status: true,
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        phone: true,
+        role: true,
+        isActive: true,
+        lastLogin: true,
+        createdAt: true,
+        updatedAt: true,
+        companyId: true,
+        themeMode: true,
+        themeColor: true,
+        customPrimary: true,
+        customSecondary: true,
+        company: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            logo: true,
+            primaryColor: true,
+            secondaryColor: true,
+            status: true,
+          },
+        },
+        assignedBranches: {
+          select: {
+            id: true,
+            branchId: true,
+            branch: {
+              select: {
+                id: true,
+                name: true,
+                address: true,
+              },
+            },
+          },
         },
       },
-      branch: {
-        select: {
-          id: true,
-          name: true,
-          address: true,
-        },
-      },
-    },
-  });
+    });
 
-  if (!user) {
-    throw new Error('User not found');
+    if (!user) {
+      throw new Error('User not found');
+    }
+
+    return user;
   }
-
-  return user;
-}
 
   async updateProfile(
     userId: string,
@@ -485,8 +502,7 @@ export class AuthService {
         lastLogin: true,
         createdAt: true,
         updatedAt: true,
-        companyId: true,   // ✅ CRITICAL - WAS MISSING
-        branchId: true,    // ✅ CRITICAL - WAS MISSING
+        companyId: true,
         company: {
           select: {
             id: true,
@@ -498,26 +514,28 @@ export class AuthService {
             status: true,
           },
         },
-        branch: {
+        assignedBranches: {
           select: {
             id: true,
-            name: true,
-            address: true,
+            branchId: true,
+            branch: {
+              select: {
+                id: true,
+                name: true,
+                address: true,
+              },
+            },
           },
         },
       },
     });
 
-    console.log('✅ Profile updated:', {
-      userId: user.id,
-      companyId: user.companyId,
-      branchId: user.branchId,
-    });
+    console.log('✅ Profile updated:', user.email);
 
     return user;
   }
 
-  // Password reset methods
+  // ✅ FIXED: Password reset with email integration
   async forgotPassword(email: string) {
     const user = await prisma.user.findUnique({
       where: { email },
@@ -530,13 +548,15 @@ export class AuthService {
       },
     });
 
+    // Always return success message (security best practice)
     if (!user) {
+      console.log('⚠️ Password reset requested for non-existent email:', email);
       return { message: 'If the email exists, a password reset link has been sent' };
     }
 
     const resetToken = crypto.randomBytes(32).toString('hex');
     const resetTokenHash = crypto.createHash('sha256').update(resetToken).digest('hex');
-    const resetTokenExpiry = new Date(Date.now() + 60 * 60 * 1000);
+    const resetTokenExpiry = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
 
     await prisma.user.update({
       where: { id: user.id },
@@ -546,15 +566,25 @@ export class AuthService {
       } as any,
     });
 
-    // TODO: Send email
     const resetUrl = `${process.env.FRONTEND_URL}/auth/reset-password?token=${resetToken}`;
-    // const userName = `${user.firstName} ${user.lastName}`;
+    const userName = `${user.firstName} ${user.lastName}`;
+
+    // ✅ Send password reset email (don't wait for it)
+    EmailService.sendPasswordResetEmail(
+      user.email,
+      resetUrl,
+      userName
+    ).catch(error => {
+      console.error('⚠️ Failed to send password reset email:', error);
+      // Don't throw - email failure shouldn't block the flow
+    });
 
     console.log('🔑 Password reset token generated for:', user.email);
     console.log('🔗 Reset URL:', resetUrl);
 
     return { 
       message: 'If the email exists, a password reset link has been sent',
+      // ✅ Only show token in development
       ...(process.env.NODE_ENV === 'development' && { 
         resetToken,
         resetUrl 
@@ -577,6 +607,8 @@ export class AuthService {
     if (!user) {
       throw new Error('Invalid or expired reset token');
     }
+
+    console.log('✅ Reset token verified for:', user.email);
 
     return { valid: true };
   }
@@ -612,6 +644,7 @@ export class AuthService {
       } as any,
     });
 
+    // Invalidate all refresh tokens
     await prisma.refreshToken.deleteMany({
       where: { userId: user.id },
     });
@@ -647,66 +680,103 @@ export class AuthService {
   }
 
   async updateThemePreferences(
+    userId: string,
+    themeData: {
+      themeMode?: 'light' | 'dark';
+      themeColor?: string;
+      customPrimary?: string;
+      customSecondary?: string;
+    }
+  ) {
+    const user = await prisma.user.update({
+      where: { id: userId },
+      data: {
+        themeMode: themeData.themeMode,
+        themeColor: themeData.themeColor,
+        customPrimary: themeData.customPrimary,
+        customSecondary: themeData.customSecondary,
+      },
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        phone: true,
+        role: true,
+        isActive: true,
+        lastLogin: true,
+        createdAt: true,
+        updatedAt: true,
+        companyId: true,
+        themeMode: true,
+        themeColor: true,
+        customPrimary: true,
+        customSecondary: true,
+        company: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            logo: true,
+            primaryColor: true,
+            secondaryColor: true,
+            status: true,
+          },
+        },
+        assignedBranches: {
+          select: {
+            id: true,
+            branchId: true,
+            branch: {
+              select: {
+                id: true,
+                name: true,
+                address: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    console.log('✅ Theme preferences updated for:', user.email);
+
+    return user;
+  }
+
+  async updateTheme(
   userId: string,
   themeData: {
-    themeMode?: 'light' | 'dark';
+    themeMode?: string;
     themeColor?: string;
-    customPrimary?: string;
-    customSecondary?: string;
+    customPrimary?: string | null;
+    customSecondary?: string | null;
   }
-) {
-  const user = await prisma.user.update({
-    where: { id: userId },
-    data: {
-      themeMode: themeData.themeMode,
-      themeColor: themeData.themeColor,
-      customPrimary: themeData.customPrimary,
-      customSecondary: themeData.customSecondary,
-    },
-    select: {
-      id: true,
-      email: true,
-      firstName: true,
-      lastName: true,
-      phone: true,
-      role: true,
-      isActive: true,
-      lastLogin: true,
-      createdAt: true,
-      updatedAt: true,
-      companyId: true,
-      branchId: true,
-      themeMode: true,        // ✅ Include theme
-      themeColor: true,       // ✅ Include theme
-      customPrimary: true,    // ✅ Include theme
-      customSecondary: true,  // ✅ Include theme
-      company: {
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          logo: true,
-          primaryColor: true,
-          secondaryColor: true,
-          status: true,
-        },
+): Promise<any> {
+  try {
+    const updatedUser = await prisma.user.update({
+      where: { id: userId },
+      data: {
+        themeMode: themeData.themeMode,
+        themeColor: themeData.themeColor,
+        customPrimary: themeData.customPrimary,
+        customSecondary: themeData.customSecondary,
       },
-      branch: {
-        select: {
-          id: true,
-          name: true,
-          address: true,
-        },
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        themeMode: true,
+        themeColor: true,
+        customPrimary: true,
+        customSecondary: true,
       },
-    },
-  });
+    });
 
-  console.log('✅ Theme preferences updated:', {
-    userId: user.id,
-    themeMode: user.themeMode,
-    themeColor: user.themeColor,
-  });
-
-  return user;
+    return updatedUser;
+  } catch (error: any) {
+    throw new Error(`Failed to update theme: ${error.message}`);
+  }
 }
 }

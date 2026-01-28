@@ -1,6 +1,6 @@
 // src/modules/users/users.routes.ts
 import { Router } from 'express';
-import { UsersController } from './users.controller';
+import { UsersController, userPhotoUpload } from './users.controller';
 import { ValidationMiddleware } from '../../middleware/validation.middleware';
 import { AuthMiddleware } from '../../middleware/auth.middleware';
 import { TenantMiddleware } from '../../middleware/tenant.middleware';
@@ -10,11 +10,18 @@ import { UserRole } from '../../types/enums';
 const router = Router();
 const usersController = new UsersController();
 
-// All routes require authentication and company admin role
+// All routes require authentication and admin role
 router.use(
   AuthMiddleware.authenticate,
-  AuthMiddleware.authorize(UserRole.SUPER_ADMIN,UserRole.COMPANY_ADMIN),
+  AuthMiddleware.authorize(UserRole.SUPER_ADMIN, UserRole.COMPANY_ADMIN),
   TenantMiddleware.validateCompanyAccess
+);
+
+// ✅ NEW: Photo upload endpoint (must be before other routes)
+router.post(
+  '/upload-photo',
+  userPhotoUpload,
+  usersController.uploadPhoto
 );
 
 router.post(

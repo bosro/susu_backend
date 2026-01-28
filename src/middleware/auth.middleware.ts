@@ -35,7 +35,6 @@ export class AuthMiddleware {
             lastName: true,
             role: true,
             companyId: true,
-            branchId: true,
             isActive: true,
             company: {
               select: {
@@ -73,7 +72,7 @@ export class AuthMiddleware {
           lastName: user.lastName,
           role: user.role as UserRole,
           companyId: user.companyId,
-          branchId: user.branchId,
+          branchId: null, // ✅ Always null now - branches handled via assignedBranches
         };
 
         next();
@@ -144,7 +143,7 @@ export class AuthMiddleware {
         lastName: '',
         role: decoded.role,
         companyId: decoded.companyId,
-        branchId: decoded.branchId,
+        branchId: null, // ✅ Always null now
       };
     } catch {
       // Invalid token, but we don't throw error for optional auth

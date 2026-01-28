@@ -1,4 +1,4 @@
-// src/modules/auth/auth.controller.ts - ADD missing controllers
+// src/modules/auth/auth.controller.ts
 import { Response, NextFunction } from "express";
 import { AuthService } from "./auth.service";
 import { ResponseUtil } from "../../utils/response.util";
@@ -145,7 +145,30 @@ export class AuthController {
     }
   };
 
-  // ✅ NEW: Missing controllers
+  // ✅ NEW: Update theme preferences
+  updateTheme = async (
+    req: IAuthRequest,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> => {
+    try {
+      const userId = req.user!.id;
+      const { themeMode, themeColor, customPrimary, customSecondary } = req.body;
+      
+      const result = await this.authService.updateTheme(userId, {
+        themeMode,
+        themeColor,
+        customPrimary,
+        customSecondary,
+      });
+      
+      ResponseUtil.success(res, result, "Theme preferences updated successfully");
+    } catch (error: any) {
+      next(error);
+    }
+  };
+
+  // ✅ Password reset controllers
   forgotPassword = async (
     req: IAuthRequest,
     res: Response,
@@ -153,7 +176,6 @@ export class AuthController {
   ): Promise<void> => {
     try {
       const { email } = req.body;
-      // Implement forgot password logic in AuthService
       const result = await this.authService.forgotPassword(email);
       ResponseUtil.success(res, result, "Password reset email sent");
     } catch (error: any) {
@@ -168,7 +190,6 @@ export class AuthController {
   ): Promise<void> => {
     try {
       const { token, newPassword } = req.body;
-      // Implement reset password logic in AuthService
       const result = await this.authService.resetPassword({
         token,
         newPassword,

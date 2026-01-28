@@ -92,6 +92,13 @@ router.patch(
   authController.updateProfile
 );
 
+// ✅ NEW: Theme preferences endpoint
+router.put(
+  '/theme',
+  AuthMiddleware.authenticate,
+  authController.updateTheme
+);
+
 // ✅ Admin routes
 router.post(
   '/cleanup-tokens',

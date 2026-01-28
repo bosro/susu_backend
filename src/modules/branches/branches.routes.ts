@@ -1,4 +1,6 @@
 // src/modules/branches/branches.routes.ts
+// ✅ Added new routes for agent-branch management
+
 import { Router } from 'express';
 import { BranchesController } from './branches.controller';
 import { ValidationMiddleware } from '../../middleware/validation.middleware';
@@ -16,44 +18,56 @@ router.use(
   TenantMiddleware.validateCompanyAccess
 );
 
+// ✅ NEW: Get branches assigned to current agent (accessible by all authenticated users)
+router.get(
+  '/my-branches',
+  branchesController.getMyBranches
+);
+
+// Create branch (admin only)
 router.post(
   '/',
-  AuthMiddleware.authorize(UserRole.SUPER_ADMIN, UserRole.COMPANY_ADMIN), // ✅ Added SUPER_ADMIN
+  AuthMiddleware.authorize(UserRole.SUPER_ADMIN, UserRole.COMPANY_ADMIN),
   ValidationMiddleware.validate(branchesValidation.create),
   branchesController.create
 );
 
+// Get all branches (accessible by all authenticated users, filtered by role)
 router.get(
   '/',
   ValidationMiddleware.validateQuery(branchesValidation.query),
   branchesController.getAll
 );
 
+// Get branch by ID
 router.get(
   '/:id',
   ValidationMiddleware.validateParams(branchesValidation.params),
   branchesController.getById
 );
 
+// ✅ NEW: Get agents assigned to a branch
+router.get(
+  '/:id/agents',
+  ValidationMiddleware.validateParams(branchesValidation.params),
+  branchesController.getBranchAgents
+);
+
+// Update branch (admin only)
 router.patch(
   '/:id',
-  AuthMiddleware.authorize(UserRole.SUPER_ADMIN, UserRole.COMPANY_ADMIN), // ✅ Added SUPER_ADMIN
+  AuthMiddleware.authorize(UserRole.SUPER_ADMIN, UserRole.COMPANY_ADMIN),
   ValidationMiddleware.validateParams(branchesValidation.params),
   ValidationMiddleware.validate(branchesValidation.update),
   branchesController.update
 );
 
+// Delete branch (admin only)
 router.delete(
   '/:id',
-  AuthMiddleware.authorize(UserRole.SUPER_ADMIN, UserRole.COMPANY_ADMIN), // ✅ Added SUPER_ADMIN
+  AuthMiddleware.authorize(UserRole.SUPER_ADMIN, UserRole.COMPANY_ADMIN),
   ValidationMiddleware.validateParams(branchesValidation.params),
   branchesController.delete
-);
-
-router.get(
-  '/:id/stats',
-  ValidationMiddleware.validateParams(branchesValidation.params),
-  branchesController.getStats
 );
 
 export default router;

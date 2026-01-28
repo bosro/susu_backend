@@ -1,4 +1,6 @@
 // src/modules/collections/collections.routes.ts
+// ✅ UPDATED - Added unread count and mark as read routes
+
 import { Router } from 'express';
 import { CollectionsController } from './collections.controller';
 import { ValidationMiddleware } from '../../middleware/validation.middleware';
@@ -18,7 +20,7 @@ router.use(
 
 router.post(
   '/',
-  AuthMiddleware.authorize(UserRole.SUPER_ADMIN, UserRole.COMPANY_ADMIN, UserRole.AGENT), // ✅ Added SUPER_ADMIN
+  AuthMiddleware.authorize(UserRole.SUPER_ADMIN, UserRole.COMPANY_ADMIN, UserRole.AGENT),
   TenantMiddleware.validateBranchAccess,
   ValidationMiddleware.validate(collectionsValidation.create),
   collectionsController.create
@@ -36,15 +38,34 @@ router.get(
   collectionsController.getStats
 );
 
+// ✅ NEW: Get unread collection count
+router.get(
+  '/unread-count',
+  collectionsController.getUnreadCount
+);
+
+// ✅ NEW: Mark multiple collections as read
+router.post(
+  '/mark-read',
+  collectionsController.markMultipleAsRead
+);
+
 router.get(
   '/:id',
   ValidationMiddleware.validateParams(collectionsValidation.params),
   collectionsController.getById
 );
 
+// ✅ NEW: Mark single collection as read
+router.post(
+  '/:id/mark-read',
+  ValidationMiddleware.validateParams(collectionsValidation.params),
+  collectionsController.markAsRead
+);
+
 router.patch(
   '/:id',
-  AuthMiddleware.authorize(UserRole.SUPER_ADMIN, UserRole.COMPANY_ADMIN), // ✅ Added SUPER_ADMIN
+  AuthMiddleware.authorize(UserRole.SUPER_ADMIN, UserRole.COMPANY_ADMIN),
   ValidationMiddleware.validateParams(collectionsValidation.params),
   ValidationMiddleware.validate(collectionsValidation.update),
   collectionsController.update
@@ -52,10 +73,9 @@ router.patch(
 
 router.delete(
   '/:id',
-  AuthMiddleware.authorize(UserRole.SUPER_ADMIN, UserRole.COMPANY_ADMIN), // ✅ Added SUPER_ADMIN
+  AuthMiddleware.authorize(UserRole.SUPER_ADMIN, UserRole.COMPANY_ADMIN),
   ValidationMiddleware.validateParams(collectionsValidation.params),
   collectionsController.delete
 );
 
 export default router;
-

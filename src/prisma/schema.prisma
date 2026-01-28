@@ -1,4 +1,6 @@
-// src/prisma/schema.prisma
+// prisma/schema.prisma
+// ✅ COMPLETE SCHEMA - Copy this entire file to replace your current schema.prisma
+
 generator client {
   provider = "prisma-client-js"
 }
@@ -7,6 +9,8 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
+
+// ==================== ENUMS ====================
 
 enum UserRole {
   SUPER_ADMIN
@@ -43,72 +47,82 @@ enum TransactionType {
   FEE
 }
 
+// ==================== MODELS ====================
+
 model Company {
-  id          String        @id @default(uuid())
-  name        String
-  email       String        @unique
-  phone       String?
-  address     String?
-  logo        String?
-  primaryColor String?      @default("#4F46E5")
-  secondaryColor String?    @default("#818CF8")
-  status      CompanyStatus @default(PENDING)
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
+  id             String        @id @default(uuid())
+  name           String
+  email          String        @unique
+  phone          String?
+  address        String?
+  logo           String?
+  primaryColor   String?       @default("#4F46E5")
+  secondaryColor String?       @default("#818CF8")
+  status         CompanyStatus @default(PENDING)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
   
-  // Relations
-  users       User[]
-  branches    Branch[]
-  customers   Customer[]
-  susuPlans   SusuPlan[]
-  collections Collection[]
+  users          User[]
+  branches       Branch[]
+  customers      Customer[]
+  susuPlans      SusuPlan[]
+  collections    Collection[]
   dailySummaries DailySummary[]
-  notifications Notification[]
-  auditLogs   AuditLog[]
+  notifications  Notification[]
+  auditLogs      AuditLog[]
   
   @@index([status])
   @@index([email])
 }
 
 model User {
-  id          String    @id @default(uuid())
-  companyId   String?
-  email       String    @unique
-  password    String
-  firstName   String
-  lastName    String
-  phone       String?
-  role        UserRole
-  isActive    Boolean   @default(true)
-  lastLogin   DateTime?
-
-  resetToken  String?
+  id               String    @id @default(uuid())
+  companyId        String?
+  email            String    @unique
+  password         String
+  firstName        String
+  lastName         String
+  phone            String?
+  role             UserRole
+  isActive         Boolean   @default(true)
+  lastLogin        DateTime?
+  photoUrl         String?   // ✅ NEW: Cloudinary photo URL
+  photoPublicId    String?   // ✅ NEW: Cloudinary public ID
+  resetToken       String?
   resetTokenExpiry DateTime?
-
-    // ✅ Theme preferences
-  themeMode        String?  @default("light") // "light" or "dark"
-  themeColor       String?  @default("default") // "default", "blue", "green", "purple"
-  customPrimary    String?  // Custom primary color
-  customSecondary  String?  // Custom secondary color
-
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  themeMode        String?   @default("light")
+  themeColor       String?   @default("default")
+  customPrimary    String?
+  customSecondary  String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
   
-  // Relations
-  company     Company?  @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  branch      Branch?   @relation(fields: [branchId], references: [id])
-  branchId    String?
-  
-  collectionsRecorded Collection[]
-  dailySummaries DailySummary[]
-  createdNotifications Notification[] @relation("CreatedNotifications")
-  receivedNotifications Notification[] @relation("ReceivedNotifications")
-  auditLogs   AuditLog[]
-  refreshTokens RefreshToken[]
+  company                Company?                @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  assignedBranches       AgentBranchAssignment[]
+  collectionsRecorded    Collection[]
+  dailySummaries         DailySummary[]
+  createdNotifications   Notification[]          @relation("CreatedNotifications")
+  receivedNotifications  Notification[]          @relation("ReceivedNotifications")
+  auditLogs              AuditLog[]
+  refreshTokens          RefreshToken[]
   
   @@index([companyId])
   @@index([email])
   @@index([role])
+}
+
+model AgentBranchAssignment {
+  id         String   @id @default(uuid())
+  userId     String
+  branchId   String
+  assignedAt DateTime @default(now())
+  assignedBy String?
+  
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  branch Branch @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  
+  @@unique([userId, branchId])
+  @@index([userId])
   @@index([branchId])
 }
 
@@ -119,27 +133,26 @@ model RefreshToken {
   expiresAt DateTime
   createdAt DateTime @default(now())
   
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
   
   @@index([userId])
   @@index([token])
 }
 
 model Branch {
-  id          String    @id @default(uuid())
-  companyId   String
-  name        String
-  address     String?
-  phone       String?
-  isActive    Boolean   @default(true)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id             String                  @id @default(uuid())
+  companyId      String
+  name           String
+  address        String?
+  phone          String?
+  isActive       Boolean                 @default(true)
+  createdAt      DateTime                @default(now())
+  updatedAt      DateTime                @updatedAt
   
-  // Relations
-  company     Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  agents      User[]
-  customers   Customer[]
-  collections Collection[]
+  company        Company                 @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  assignedAgents AgentBranchAssignment[]
+  customers      Customer[]
+  collections    Collection[]
   dailySummaries DailySummary[]
   
   @@index([companyId])
@@ -147,25 +160,24 @@ model Branch {
 }
 
 model Customer {
-  id          String    @id @default(uuid())
-  companyId   String
-  branchId    String
-  firstName   String
-  lastName    String
-  phone       String
-  email       String?
-  address     String?
-  idNumber    String?
-  photoUrl    String?
-  isActive    Boolean   @default(true)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id           String        @id @default(uuid())
+  companyId    String
+  branchId     String
+  firstName    String
+  lastName     String
+  phone        String
+  email        String?
+  address      String?
+  idNumber     String?
+  photoUrl     String?
+  isActive     Boolean       @default(true)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
   
-  // Relations
-  company     Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  branch      Branch    @relation(fields: [branchId], references: [id])
+  company      Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  branch       Branch        @relation(fields: [branchId], references: [id])
   susuAccounts SusuAccount[]
-  collections Collection[]
+  collections  Collection[]
   
   @@unique([companyId, phone])
   @@index([companyId])
@@ -174,22 +186,21 @@ model Customer {
 }
 
 model SusuPlan {
-  id          String        @id @default(uuid())
-  companyId   String
-  name        String
-  description String?
-  type        SusuPlanType
-  amount      Decimal       @db.Decimal(10, 2)
-  frequency   String?       // daily, weekly, monthly
-  duration    Int?          // in days
-  targetAmount Decimal?     @db.Decimal(10, 2)
-  imageUrl    String?
-  isActive    Boolean       @default(true)
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
+  id           String        @id @default(uuid())
+  companyId    String
+  name         String
+  description  String?
+  type         SusuPlanType
+  amount       Decimal       @db.Decimal(10, 2)
+  frequency    String?
+  duration     Int?
+  targetAmount Decimal?      @db.Decimal(10, 2)
+  imageUrl     String?
+  isActive     Boolean       @default(true)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
   
-  // Relations
-  company     Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  company      Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
   susuAccounts SusuAccount[]
   
   @@index([companyId])
@@ -198,22 +209,21 @@ model SusuPlan {
 }
 
 model SusuAccount {
-  id          String    @id @default(uuid())
-  customerId  String
-  susuPlanId  String
-  accountNumber String  @unique
-  balance     Decimal   @db.Decimal(10, 2) @default(0)
-  targetAmount Decimal? @db.Decimal(10, 2)
-  startDate   DateTime  @default(now())
-  endDate     DateTime?
-  isActive    Boolean   @default(true)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id            String        @id @default(uuid())
+  customerId    String
+  susuPlanId    String
+  accountNumber String        @unique
+  balance       Decimal       @db.Decimal(10, 2) @default(0)
+  targetAmount  Decimal?      @db.Decimal(10, 2)
+  startDate     DateTime      @default(now())
+  endDate       DateTime?
+  isActive      Boolean       @default(true)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
   
-  // Relations
-  customer    Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  susuPlan    SusuPlan  @relation(fields: [susuPlanId], references: [id])
-  collections Collection[]
+  customer     Customer      @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  susuPlan     SusuPlan      @relation(fields: [susuPlanId], references: [id])
+  collections  Collection[]
   transactions Transaction[]
   
   @@index([customerId])
@@ -222,28 +232,28 @@ model SusuAccount {
 }
 
 model Collection {
-  id          String           @id @default(uuid())
-  companyId   String
-  branchId    String
-  customerId  String
-  susuAccountId String
-  agentId     String
-  amount      Decimal          @db.Decimal(10, 2)
-  expectedAmount Decimal?      @db.Decimal(10, 2)
-  collectionDate DateTime      @default(now())
-  status      CollectionStatus @default(COLLECTED)
-  notes       String?
-  latitude    String?
-  longitude   String?
-  createdAt   DateTime         @default(now())
-  updatedAt   DateTime         @updatedAt
+  id             String           @id @default(uuid())
+  companyId      String
+  branchId       String
+  customerId     String
+  susuAccountId  String
+  agentId        String
+  amount         Decimal          @db.Decimal(10, 2)
+  expectedAmount Decimal?         @db.Decimal(10, 2)
+  collectionDate DateTime         @default(now())
+  status         CollectionStatus @default(COLLECTED)
+  notes          String?
+  latitude       String?
+  longitude      String?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  viewedBy       String[]         @default([])
   
-  // Relations
-  company     Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  branch      Branch        @relation(fields: [branchId], references: [id])
-  customer    Customer      @relation(fields: [customerId], references: [id])
-  susuAccount SusuAccount   @relation(fields: [susuAccountId], references: [id])
-  agent       User          @relation(fields: [agentId], references: [id])
+  company     Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  branch      Branch      @relation(fields: [branchId], references: [id])
+  customer    Customer    @relation(fields: [customerId], references: [id])
+  susuAccount SusuAccount @relation(fields: [susuAccountId], references: [id])
+  agent       User        @relation(fields: [agentId], references: [id])
   
   @@index([companyId])
   @@index([branchId])
@@ -251,22 +261,22 @@ model Collection {
   @@index([agentId])
   @@index([collectionDate])
   @@index([status])
+  @@index([viewedBy]) 
 }
 
 model Transaction {
-  id          String          @id @default(uuid())
+  id            String          @id @default(uuid())
   susuAccountId String
-  type        TransactionType
-  amount      Decimal         @db.Decimal(10, 2)
-  balanceBefore Decimal       @db.Decimal(10, 2)
-  balanceAfter Decimal        @db.Decimal(10, 2)
-  reference   String          @unique
-  description String?
-  metadata    Json?
-  createdAt   DateTime        @default(now())
+  type          TransactionType
+  amount        Decimal         @db.Decimal(10, 2)
+  balanceBefore Decimal         @db.Decimal(10, 2)
+  balanceAfter  Decimal         @db.Decimal(10, 2)
+  reference     String          @unique
+  description   String?
+  metadata      Json?
+  createdAt     DateTime        @default(now())
   
-  // Relations
-  susuAccount SusuAccount     @relation(fields: [susuAccountId], references: [id], onDelete: Cascade)
+  susuAccount SusuAccount @relation(fields: [susuAccountId], references: [id], onDelete: Cascade)
   
   @@index([susuAccountId])
   @@index([type])
@@ -274,25 +284,24 @@ model Transaction {
 }
 
 model DailySummary {
-  id          String    @id @default(uuid())
-  companyId   String
-  branchId    String
-  agentId     String
-  date        DateTime  @db.Date
-  totalExpected Decimal @db.Decimal(10, 2)
-  totalCollected Decimal @db.Decimal(10, 2)
-  totalCustomers Int
+  id               String   @id @default(uuid())
+  companyId        String
+  branchId         String
+  agentId          String
+  date             DateTime @db.Date
+  totalExpected    Decimal  @db.Decimal(10, 2)
+  totalCollected   Decimal  @db.Decimal(10, 2)
+  totalCustomers   Int
   collectionsCount Int
-  missedCount Int
-  isLocked    Boolean   @default(false)
-  notes       String?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  missedCount      Int
+  isLocked         Boolean  @default(false)
+  notes            String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
   
-  // Relations
-  company     Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  branch      Branch    @relation(fields: [branchId], references: [id])
-  agent       User      @relation(fields: [agentId], references: [id])
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  branch  Branch  @relation(fields: [branchId], references: [id])
+  agent   User    @relation(fields: [agentId], references: [id])
   
   @@unique([companyId, branchId, agentId, date])
   @@index([companyId])
@@ -302,21 +311,20 @@ model DailySummary {
 }
 
 model Notification {
-  id          String    @id @default(uuid())
-  companyId   String
-  userId      String?
-  title       String
-  message     String
-  type        String    // INFO, WARNING, SUCCESS, ERROR
-  isRead      Boolean   @default(false)
-  data        Json?
-  createdBy   String?
-  createdAt   DateTime  @default(now())
+  id        String   @id @default(uuid())
+  companyId String
+  userId    String?
+  title     String
+  message   String
+  type      String
+  isRead    Boolean  @default(false)
+  data      Json?
+  createdBy String?
+  createdAt DateTime @default(now())
   
-  // Relations
-  company     Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  user        User?     @relation("ReceivedNotifications", fields: [userId], references: [id])
-  creator     User?     @relation("CreatedNotifications", fields: [createdBy], references: [id])
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user    User?   @relation("ReceivedNotifications", fields: [userId], references: [id])
+  creator User?   @relation("CreatedNotifications", fields: [createdBy], references: [id])
   
   @@index([companyId])
   @@index([userId])
@@ -325,20 +333,19 @@ model Notification {
 }
 
 model AuditLog {
-  id          String    @id @default(uuid())
-  companyId   String
-  userId      String
-  action      String
-  entityType  String
-  entityId    String?
-  changes     Json?
-  ipAddress   String?
-  userAgent   String?
-  createdAt   DateTime  @default(now())
+  id         String   @id @default(uuid())
+  companyId  String
+  userId     String
+  action     String
+  entityType String
+  entityId   String?
+  changes    Json?
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
   
-  // Relations
-  company     Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  user        User      @relation(fields: [userId], references: [id])
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id])
   
   @@index([companyId])
   @@index([userId])

@@ -1,4 +1,4 @@
-// src/modules/reports/reports.service.ts
+// src/modules/reports/reports.service.ts - FIXED
 import { prisma } from '../../config/database';
 import { CollectionStatus } from '../../types/enums';
 
@@ -151,9 +151,15 @@ export class ReportsService {
             firstName: true,
             lastName: true,
             email: true,
-            branch: {
+            // ✅ FIXED LINE 154: Use assignedBranches instead of branch
+            assignedBranches: {
               select: {
-                name: true,
+                branch: {
+                  select: {
+                    id: true,
+                    name: true,
+                  },
+                },
               },
             },
           },
@@ -345,7 +351,8 @@ export class ReportsService {
       include: {
         _count: {
           select: {
-            agents: { where: { isActive: true } },
+            // ✅ FIXED LINE 348: Use assignedAgents instead of agents
+            assignedAgents: true,
             customers: { where: { isActive: true } },
           },
         },
@@ -386,7 +393,9 @@ export class ReportsService {
             name: branch.name,
             address: branch.address,
           },
-          totalAgents: branch._count.agents,
+          // ✅ FIXED LINE 389: Use assignedAgents
+          totalAgents: branch._count.assignedAgents,
+          // ✅ FIXED LINE 390: Use _count.customers
           totalCustomers: branch._count.customers,
           totalCollected: collections._sum.amount || 0,
           totalExpected: collections._sum.expectedAmount || 0,

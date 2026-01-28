@@ -1,6 +1,6 @@
 // src/modules/users/users.validation.ts
-import Joi from 'joi';
-import { UserRole } from '../../types/enums';
+import Joi from "joi";
+import { UserRole } from "../../types/enums";
 
 export const usersValidation = {
   create: Joi.object({
@@ -9,18 +9,41 @@ export const usersValidation = {
     firstName: Joi.string().required(),
     lastName: Joi.string().required(),
     phone: Joi.string().optional(),
-    role: Joi.string()
-      .valid(UserRole.AGENT, UserRole.COMPANY_ADMIN)
-      .required(),
+    role: Joi.string().valid(UserRole.AGENT, UserRole.COMPANY_ADMIN).required(),
+    branchIds: Joi.array().items(Joi.string().uuid()).optional().default([]),
     branchId: Joi.string().uuid().optional(),
+    photoUrl: Joi.string().uri().optional(), // ✅ NEW
+    photoPublicId: Joi.string().optional(), // ✅ NEW
+  }).custom((value) => {
+    if (
+      value.branchId !== undefined &&
+      (!value.branchIds || value.branchIds.length === 0)
+    ) {
+      value.branchIds = value.branchId ? [value.branchId] : [];
+    }
+    delete value.branchId;
+    return value;
   }),
 
   update: Joi.object({
     firstName: Joi.string().optional(),
     lastName: Joi.string().optional(),
     phone: Joi.string().optional(),
-    branchId: Joi.string().uuid().optional().allow(null),
+    branchIds: Joi.array().items(Joi.string().uuid()).optional().default([]),
+    branchId: Joi.string().uuid().optional(),
+
     isActive: Joi.boolean().optional(),
+    photoUrl: Joi.string().uri().optional().allow(null, ""), // ✅ NEW
+    photoPublicId: Joi.string().optional().allow(null, ""), // ✅ NEW
+  }).custom((value) => {
+    if (
+      value.branchId !== undefined &&
+      (!value.branchIds || value.branchIds.length === 0)
+    ) {
+      value.branchIds = value.branchId ? [value.branchId] : [];
+    }
+    delete value.branchId;
+    return value;
   }),
 
   query: Joi.object({
@@ -33,7 +56,7 @@ export const usersValidation = {
     branchId: Joi.string().uuid().optional(),
     isActive: Joi.boolean().optional(),
     sortBy: Joi.string().optional(),
-    sortOrder: Joi.string().valid('asc', 'desc').optional(),
+    sortOrder: Joi.string().valid("asc", "desc").optional(),
   }),
 
   params: Joi.object({
