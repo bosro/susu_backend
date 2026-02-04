@@ -1,6 +1,19 @@
 version: "3.9"
 
 services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: newapp-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: susu_user
+      POSTGRES_PASSWORD: susu_pass
+      POSTGRES_DB: susu_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:5433:5432"
+
   redis:
     image: redis:7-alpine
     container_name: newapp-redis
@@ -19,22 +32,18 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-      args:
-        DATABASE_URL: ${DATABASE_URL}
     container_name: newapp-api
     restart: unless-stopped
     ports:
-      - "127.0.0.1:4001:5000" # Internal only
-    environment:
-      NODE_ENV: production
-      DATABASE_URL: ${DATABASE_URL}
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
+      - "127.0.0.1:4001:5000"
     env_file:
       - .env.production
     depends_on:
+      postgres:
+        condition: service_started
       redis:
         condition: service_healthy
 
 volumes:
   redis_data:
+  postgres_data:
