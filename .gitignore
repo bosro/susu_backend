@@ -48,3 +48,6 @@ prisma/migrations/**/migration.sql
 
 private.key
 public.key
+
+docker-compose.yml
+docker-compose.prod.yml

@@ -2,7 +2,7 @@
 import rateLimit from 'express-rate-limit';
 import { config } from '../config';
 
-// ✅ General API rate limiter - very lenient for normal operations
+// ✅ General API rate limiter - very lenient for normal operation
 export const rateLimiter = rateLimit({
   windowMs: config.rateLimit?.windowMs || 5 * 60 * 1000, // 15 minutes
   max: config.rateLimit?.max || 550, // ✅ Significantly increased - 500 requests per 20 minutes
