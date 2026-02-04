@@ -19,6 +19,8 @@ RUN npm ci --omit=dev
 # Copy the rest of the source code
 COPY . .
 
+RUN npm run build
+
 # Expose API port
 EXPOSE 5000
 
