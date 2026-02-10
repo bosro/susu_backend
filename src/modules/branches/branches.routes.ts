@@ -1,5 +1,5 @@
 // src/modules/branches/branches.routes.ts
-// ✅ Added new routes for agent-branch management
+// ✅ NO RATE LIMITING - Protected by authentication middleware
 
 import { Router } from 'express';
 import { BranchesController } from './branches.controller';
@@ -12,13 +12,13 @@ import { UserRole } from '../../types/enums';
 const router = Router();
 const branchesController = new BranchesController();
 
-// All routes require authentication
+// All routes require authentication - NO rate limiting needed
 router.use(
   AuthMiddleware.authenticate,
   TenantMiddleware.validateCompanyAccess
 );
 
-// ✅ NEW: Get branches assigned to current agent (accessible by all authenticated users)
+// ✅ Get branches assigned to current agent (accessible by all authenticated users)
 router.get(
   '/my-branches',
   branchesController.getMyBranches
@@ -46,7 +46,7 @@ router.get(
   branchesController.getById
 );
 
-// ✅ NEW: Get agents assigned to a branch
+// ✅ Get agents assigned to a branch
 router.get(
   '/:id/agents',
   ValidationMiddleware.validateParams(branchesValidation.params),

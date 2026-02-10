@@ -1,4 +1,6 @@
 // src/modules/companies/companies.routes.ts
+// ✅ NO RATE LIMITING - Protected by authentication middleware
+
 import { Router } from 'express';
 import { CompaniesController } from './companies.controller';
 import { ValidationMiddleware } from '../../middleware/validation.middleware';
@@ -11,7 +13,7 @@ import { UserRole } from '../../types/enums';
 const router = Router();
 const companiesController = new CompaniesController();
 
-// All routes require authentication
+// All routes require authentication - NO rate limiting needed
 router.use(AuthMiddleware.authenticate);
 
 // Super admin routes

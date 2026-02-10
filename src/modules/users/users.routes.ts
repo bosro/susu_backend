@@ -1,4 +1,6 @@
 // src/modules/users/users.routes.ts
+// ✅ NO RATE LIMITING - Protected by authentication and admin authorization
+
 import { Router } from 'express';
 import { UsersController, userPhotoUpload } from './users.controller';
 import { ValidationMiddleware } from '../../middleware/validation.middleware';
@@ -10,14 +12,14 @@ import { UserRole } from '../../types/enums';
 const router = Router();
 const usersController = new UsersController();
 
-// All routes require authentication and admin role
+// All routes require authentication and admin role - NO rate limiting needed
 router.use(
   AuthMiddleware.authenticate,
   AuthMiddleware.authorize(UserRole.SUPER_ADMIN, UserRole.COMPANY_ADMIN),
   TenantMiddleware.validateCompanyAccess
 );
 
-// ✅ NEW: Photo upload endpoint (must be before other routes)
+// ✅ Photo upload endpoint (must be before other routes)
 router.post(
   '/upload-photo',
   userPhotoUpload,

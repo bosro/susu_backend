@@ -1,11 +1,11 @@
-//// src/app.ts
+// src/app.ts
 import express, { Application } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import compression from 'compression';
 import { config } from './config';
-import { rateLimiter } from './middleware/rate-limit.middleware';
+// ❌ REMOVED: Global rate limiter from here - will apply selectively per route
 import { ErrorMiddleware } from './middleware/error.middleware';
 
 // Import routes
@@ -59,8 +59,9 @@ class App {
       this.app.use(morgan('combined'));
     }
 
-    // Rate limiting
-    this.app.use('/api', rateLimiter);
+    // ❌ REMOVED: Global rate limiter
+    // Rate limiting is now applied selectively in individual route files
+    // this.app.use('/api', rateLimiter);
 
     // Health check
     this.app.get('/health', (_, res) => {
@@ -75,7 +76,7 @@ class App {
   private initializeRoutes(): void {
     const apiVersion = config.apiVersion;
 
-    // API routes
+    // API routes - rate limiting applied individually in route files
     this.app.use(`/api/${apiVersion}/auth`, authRoutes);
     this.app.use(`/api/${apiVersion}/companies`, companiesRoutes);
     this.app.use(`/api/${apiVersion}/users`, usersRoutes);

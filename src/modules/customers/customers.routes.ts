@@ -1,68 +1,76 @@
-// src/modules/customers/customers.routes.ts
+// src/modules/companies/companies.routes.ts
+// ✅ NO RATE LIMITING - Protected by authentication middleware
+
 import { Router } from 'express';
-import { CustomersController } from './customers.controller';
 import { ValidationMiddleware } from '../../middleware/validation.middleware';
 import { AuthMiddleware } from '../../middleware/auth.middleware';
 import { TenantMiddleware } from '../../middleware/tenant.middleware';
-import { customersValidation } from './customers.validation';
 import { upload } from '../../middleware/upload.middleware';
 import { UserRole } from '../../types/enums';
+import { CompaniesController, companiesValidation } from '../companies/companies.controller';
 
 const router = Router();
-const customersController = new CustomersController();
+const companiesController = new CompaniesController();
 
-// All routes require authentication
-router.use(
-  AuthMiddleware.authenticate,
-  TenantMiddleware.validateCompanyAccess
-);
+// All routes require authentication - NO rate limiting needed
+router.use(AuthMiddleware.authenticate);
 
-router.post(
-  '/',
-  AuthMiddleware.authorize(UserRole.SUPER_ADMIN, UserRole.COMPANY_ADMIN, UserRole.AGENT), // ✅ Added SUPER_ADMIN
-  ValidationMiddleware.validate(customersValidation.create),
-  customersController.create
-);
-
+// Super admin routes
 router.get(
   '/',
-  ValidationMiddleware.validateQuery(customersValidation.query),
-  customersController.getAll
+  AuthMiddleware.authorize(UserRole.SUPER_ADMIN),
+  ValidationMiddleware.validateQuery(companiesValidation.query),
+  companiesController.getAll
 );
 
+router.patch(
+  '/:id/status',
+  AuthMiddleware.authorize(UserRole.SUPER_ADMIN),
+  ValidationMiddleware.validateParams(companiesValidation.params),
+  ValidationMiddleware.validate(companiesValidation.updateStatus),
+  companiesController.updateStatus
+);
+
+// Company admin routes
 router.get(
   '/:id',
-  ValidationMiddleware.validateParams(customersValidation.params),
-  customersController.getById
+  ValidationMiddleware.validateParams(companiesValidation.params),
+  TenantMiddleware.validateCompanyAccess,
+  companiesController.getById
 );
 
 router.patch(
   '/:id',
-  AuthMiddleware.authorize(UserRole.SUPER_ADMIN, UserRole.COMPANY_ADMIN, UserRole.AGENT), // ✅ Added SUPER_ADMIN
-  ValidationMiddleware.validateParams(customersValidation.params),
-  ValidationMiddleware.validate(customersValidation.update),
-  customersController.update
-);
-
-router.delete(
-  '/:id',
-  AuthMiddleware.authorize(UserRole.SUPER_ADMIN, UserRole.COMPANY_ADMIN), // ✅ Added SUPER_ADMIN
-  ValidationMiddleware.validateParams(customersValidation.params),
-  customersController.delete
+  ValidationMiddleware.validateParams(companiesValidation.params),
+  ValidationMiddleware.validate(companiesValidation.update),
+  AuthMiddleware.authorize(UserRole.COMPANY_ADMIN),
+  TenantMiddleware.validateCompanyAccess,
+  companiesController.update
 );
 
 router.post(
-  '/:id/photo',
-  AuthMiddleware.authorize(UserRole.SUPER_ADMIN, UserRole.COMPANY_ADMIN, UserRole.AGENT), // ✅ Added SUPER_ADMIN
-  ValidationMiddleware.validateParams(customersValidation.params),
-  upload.single('photo'),
-  customersController.uploadPhoto
+  '/:id/logo',
+  ValidationMiddleware.validateParams(companiesValidation.params),
+  AuthMiddleware.authorize(UserRole.COMPANY_ADMIN),
+  TenantMiddleware.validateCompanyAccess,
+  upload.single('logo'),
+  companiesController.uploadLogo
+);
+
+router.delete(
+  '/:id/logo',
+  ValidationMiddleware.validateParams(companiesValidation.params),
+  AuthMiddleware.authorize(UserRole.COMPANY_ADMIN),
+  TenantMiddleware.validateCompanyAccess,
+  companiesController.deleteLogo
 );
 
 router.get(
   '/:id/stats',
-  ValidationMiddleware.validateParams(customersValidation.params),
-  customersController.getStats
+  ValidationMiddleware.validateParams(companiesValidation.params),
+  AuthMiddleware.authorize(UserRole.COMPANY_ADMIN, UserRole.SUPER_ADMIN),
+  TenantMiddleware.validateCompanyAccess,
+  companiesController.getStats
 );
 
 export default router;

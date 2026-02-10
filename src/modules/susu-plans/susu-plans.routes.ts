@@ -1,4 +1,6 @@
 // src/modules/susu-plans/susu-plans.routes.ts
+// ✅ NO RATE LIMITING - Protected by authentication middleware
+
 import { Router } from 'express';
 import { SusuPlansController } from './susu-plans.controller';
 import { ValidationMiddleware } from '../../middleware/validation.middleware';
@@ -11,7 +13,7 @@ import { UserRole } from '../../types/enums';
 const router = Router();
 const susuPlansController = new SusuPlansController();
 
-// All routes require authentication
+// All routes require authentication - NO rate limiting needed
 router.use(
   AuthMiddleware.authenticate,
   TenantMiddleware.validateCompanyAccess
@@ -19,7 +21,7 @@ router.use(
 
 router.post(
   '/',
-  AuthMiddleware.authorize(UserRole.SUPER_ADMIN, UserRole.COMPANY_ADMIN), // ✅ Added SUPER_ADMIN
+  AuthMiddleware.authorize(UserRole.SUPER_ADMIN, UserRole.COMPANY_ADMIN),
   ValidationMiddleware.validate(susuPlansValidation.create),
   susuPlansController.create
 );
@@ -38,7 +40,7 @@ router.get(
 
 router.patch(
   '/:id',
-  AuthMiddleware.authorize(UserRole.SUPER_ADMIN, UserRole.COMPANY_ADMIN), // ✅ Added SUPER_ADMIN
+  AuthMiddleware.authorize(UserRole.SUPER_ADMIN, UserRole.COMPANY_ADMIN),
   ValidationMiddleware.validateParams(susuPlansValidation.params),
   ValidationMiddleware.validate(susuPlansValidation.update),
   susuPlansController.update
@@ -46,14 +48,14 @@ router.patch(
 
 router.delete(
   '/:id',
-  AuthMiddleware.authorize(UserRole.SUPER_ADMIN, UserRole.COMPANY_ADMIN), // ✅ Added SUPER_ADMIN
+  AuthMiddleware.authorize(UserRole.SUPER_ADMIN, UserRole.COMPANY_ADMIN),
   ValidationMiddleware.validateParams(susuPlansValidation.params),
   susuPlansController.delete
 );
 
 router.post(
   '/:id/image',
-  AuthMiddleware.authorize(UserRole.SUPER_ADMIN, UserRole.COMPANY_ADMIN), // ✅ Added SUPER_ADMIN
+  AuthMiddleware.authorize(UserRole.SUPER_ADMIN, UserRole.COMPANY_ADMIN),
   ValidationMiddleware.validateParams(susuPlansValidation.params),
   upload.single('image'),
   susuPlansController.uploadImage

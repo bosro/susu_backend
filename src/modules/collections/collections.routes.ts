@@ -1,5 +1,5 @@
 // src/modules/collections/collections.routes.ts
-// ✅ UPDATED - Added unread count and mark as read routes
+// ✅ NO RATE LIMITING - Protected by authentication middleware
 
 import { Router } from 'express';
 import { CollectionsController } from './collections.controller';
@@ -12,7 +12,7 @@ import { UserRole } from '../../types/enums';
 const router = Router();
 const collectionsController = new CollectionsController();
 
-// All routes require authentication
+// All routes require authentication - NO rate limiting needed
 router.use(
   AuthMiddleware.authenticate,
   TenantMiddleware.validateCompanyAccess
@@ -38,13 +38,13 @@ router.get(
   collectionsController.getStats
 );
 
-// ✅ NEW: Get unread collection count
+// ✅ Get unread collection count
 router.get(
   '/unread-count',
   collectionsController.getUnreadCount
 );
 
-// ✅ NEW: Mark multiple collections as read
+// ✅ Mark multiple collections as read
 router.post(
   '/mark-read',
   collectionsController.markMultipleAsRead
@@ -56,7 +56,7 @@ router.get(
   collectionsController.getById
 );
 
-// ✅ NEW: Mark single collection as read
+// ✅ Mark single collection as read
 router.post(
   '/:id/mark-read',
   ValidationMiddleware.validateParams(collectionsValidation.params),
