@@ -1,4 +1,6 @@
 // src/modules/daily-summaries/daily-summaries.routes.ts
+// ✅ NO RATE LIMITING - Protected by authentication middleware
+
 import { Router } from 'express';
 import { DailySummariesController } from './daily-summaries.controller';
 import { ValidationMiddleware } from '../../middleware/validation.middleware';
@@ -10,7 +12,7 @@ import { UserRole } from '../../types/enums';
 const router = Router();
 const dailySummariesController = new DailySummariesController();
 
-// All routes require authentication
+// All routes require authentication - NO rate limiting needed
 router.use(
   AuthMiddleware.authenticate,
   TenantMiddleware.validateCompanyAccess

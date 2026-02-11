@@ -1,4 +1,6 @@
 // src/modules/susu-accounts/susu-accounts.routes.ts
+// ✅ NO RATE LIMITING - Protected by authentication middleware
+
 import { Router } from 'express';
 import { SusuAccountsController } from './susu-accounts.controller';
 import { ValidationMiddleware } from '../../middleware/validation.middleware';
@@ -10,7 +12,7 @@ import { UserRole } from '../../types/enums';
 const router = Router();
 const susuAccountsController = new SusuAccountsController();
 
-// All routes require authentication
+// All routes require authentication - NO rate limiting needed
 router.use(
   AuthMiddleware.authenticate,
   TenantMiddleware.validateCompanyAccess
@@ -18,7 +20,7 @@ router.use(
 
 router.post(
   '/',
-  AuthMiddleware.authorize(UserRole.SUPER_ADMIN, UserRole.COMPANY_ADMIN, UserRole.AGENT), // ✅ Added SUPER_ADMIN
+  AuthMiddleware.authorize(UserRole.SUPER_ADMIN, UserRole.COMPANY_ADMIN, UserRole.AGENT),
   ValidationMiddleware.validate(susuAccountsValidation.create),
   susuAccountsController.create
 );
@@ -37,7 +39,7 @@ router.get(
 
 router.patch(
   '/:id',
-  AuthMiddleware.authorize(UserRole.SUPER_ADMIN, UserRole.COMPANY_ADMIN), // ✅ Added SUPER_ADMIN
+  AuthMiddleware.authorize(UserRole.SUPER_ADMIN, UserRole.COMPANY_ADMIN),
   ValidationMiddleware.validateParams(susuAccountsValidation.params),
   ValidationMiddleware.validate(susuAccountsValidation.update),
   susuAccountsController.update
@@ -45,7 +47,7 @@ router.patch(
 
 router.post(
   '/:id/withdraw',
-  AuthMiddleware.authorize(UserRole.SUPER_ADMIN, UserRole.COMPANY_ADMIN), // ✅ Added SUPER_ADMIN
+  AuthMiddleware.authorize(UserRole.SUPER_ADMIN, UserRole.COMPANY_ADMIN),
   ValidationMiddleware.validateParams(susuAccountsValidation.params),
   ValidationMiddleware.validate(susuAccountsValidation.withdraw),
   susuAccountsController.withdraw

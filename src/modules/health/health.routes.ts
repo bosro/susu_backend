@@ -1,4 +1,6 @@
 // src/modules/health/health.routes.ts
+// ✅ NO RATE LIMITING - Health checks should be unrestricted
+
 import { Router } from 'express';
 import { HealthController } from './health.controller';
 

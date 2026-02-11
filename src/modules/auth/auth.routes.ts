@@ -14,17 +14,17 @@ import { UserRole } from '../../types/enums';
 const router = Router();
 const authController = new AuthController();
 
-// ✅ Public routes with appropriate rate limiting
+// ✅ Public routes with appropriate rate limiting ONLY on auth-specific endpoints
 router.post(
   '/register',
-  authRateLimiter, // ✅ 15 attempts per 15 minutes
+  authRateLimiter, // 50 attempts per 15 minutes
   ValidationMiddleware.validate(authValidation.register),
   authController.register
 );
 
 router.post(
   '/login',
-  authRateLimiter, // ✅ 15 attempts per 15 minutes
+  authRateLimiter, // 50 attempts per 15 minutes
   ValidationMiddleware.validate(authValidation.login),
   authController.login
 );
@@ -32,7 +32,7 @@ router.post(
 // ✅ Token refresh with lenient rate limit
 router.post(
   '/refresh-token',
-  tokenRefreshLimiter, // ✅ 50 attempts per 15 minutes - very lenient
+  tokenRefreshLimiter, // 500 attempts per 15 minutes - very lenient
   ValidationMiddleware.validate(authValidation.refreshToken),
   authController.refreshToken
 );
@@ -40,26 +40,26 @@ router.post(
 // ✅ Password reset routes with specific limiter
 router.post(
   '/forgot-password',
-  passwordResetLimiter, // ✅ 5 attempts per hour
+  passwordResetLimiter, // 20 attempts per hour
   ValidationMiddleware.validate(authValidation.forgotPassword),
   authController.forgotPassword
 );
 
 router.post(
   '/reset-password',
-  passwordResetLimiter, // ✅ 5 attempts per hour
+  passwordResetLimiter, // 20 attempts per hour
   ValidationMiddleware.validate(authValidation.resetPassword),
   authController.resetPassword
 );
 
 router.post(
   '/verify-reset-token',
-  passwordResetLimiter, // ✅ 5 attempts per hour
+  passwordResetLimiter, // 20 attempts per hour
   ValidationMiddleware.validate(authValidation.verifyResetToken),
   authController.verifyResetToken
 );
 
-// ✅ Protected routes - no rate limiting needed (auth middleware provides protection)
+// ✅ Protected routes - NO rate limiting (auth middleware provides protection)
 router.post(
   '/logout',
   AuthMiddleware.authenticate,
@@ -92,14 +92,14 @@ router.patch(
   authController.updateProfile
 );
 
-// ✅ NEW: Theme preferences endpoint
+// ✅ Theme preferences endpoint - NO rate limiting
 router.put(
   '/theme',
   AuthMiddleware.authenticate,
   authController.updateTheme
 );
 
-// ✅ Admin routes
+// ✅ Admin routes - NO rate limiting (auth middleware provides protection)
 router.post(
   '/cleanup-tokens',
   AuthMiddleware.authenticate,
