@@ -1,6 +1,5 @@
 // src/middleware/rate-limit.middleware.ts
 import rateLimit from 'express-rate-limit';
-import { config } from '../config';
 
 // ✅ General API rate limiter - VERY lenient for normal operation
 export const rateLimiter = rateLimit({
