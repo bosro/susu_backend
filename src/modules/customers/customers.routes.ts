@@ -1,76 +1,102 @@
-// src/modules/companies/companies.routes.ts
-// ✅ NO RATE LIMITING - Protected by authentication middleware
+// src/modules/customers/customers.routes.ts
+// ✅ COMPLETE CUSTOMERS ROUTES - Based on your customers.controller.ts and customers.service.ts
 
 import { Router } from 'express';
 import { ValidationMiddleware } from '../../middleware/validation.middleware';
 import { AuthMiddleware } from '../../middleware/auth.middleware';
-import { TenantMiddleware } from '../../middleware/tenant.middleware';
 import { upload } from '../../middleware/upload.middleware';
 import { UserRole } from '../../types/enums';
-import { CompaniesController, companiesValidation } from '../companies/companies.controller';
+import { CustomersController } from './customers.controller';
+import { customersValidation } from './customers.validation';
 
 const router = Router();
-const companiesController = new CompaniesController();
+const customersController = new CustomersController();
 
-// All routes require authentication - NO rate limiting needed
+// ============================================
+// ALL ROUTES REQUIRE AUTHENTICATION
+// ============================================
 router.use(AuthMiddleware.authenticate);
 
-// Super admin routes
+// ============================================
+// GET /customers - List all customers
+// ============================================
+// SUPER_ADMIN: Can see ALL customers across all companies
+// COMPANY_ADMIN: Can see customers in their company only
+// AGENT: Can see customers in their assigned branch only
 router.get(
   '/',
-  AuthMiddleware.authorize(UserRole.SUPER_ADMIN),
-  ValidationMiddleware.validateQuery(companiesValidation.query),
-  companiesController.getAll
+  AuthMiddleware.authorize(UserRole.SUPER_ADMIN, UserRole.COMPANY_ADMIN, UserRole.AGENT),
+  ValidationMiddleware.validateQuery(customersValidation.query),
+  customersController.getAll
 );
 
-router.patch(
-  '/:id/status',
-  AuthMiddleware.authorize(UserRole.SUPER_ADMIN),
-  ValidationMiddleware.validateParams(companiesValidation.params),
-  ValidationMiddleware.validate(companiesValidation.updateStatus),
-  companiesController.updateStatus
+// ============================================
+// POST /customers - Create new customer
+// ============================================
+// COMPANY_ADMIN: Can create customers in their company
+// AGENT: Can create customers in their assigned branch
+router.post(
+  '/',
+  AuthMiddleware.authorize(UserRole.COMPANY_ADMIN, UserRole.AGENT),
+  ValidationMiddleware.validate(customersValidation.create),
+  customersController.create
 );
 
-// Company admin routes
+// ============================================
+// GET /customers/:id - Get customer by ID
+// ============================================
+// All roles can view, but service layer filters by access
 router.get(
   '/:id',
-  ValidationMiddleware.validateParams(companiesValidation.params),
-  TenantMiddleware.validateCompanyAccess,
-  companiesController.getById
+  AuthMiddleware.authorize(UserRole.SUPER_ADMIN, UserRole.COMPANY_ADMIN, UserRole.AGENT),
+  ValidationMiddleware.validateParams(customersValidation.params),
+  customersController.getById
 );
 
+// ============================================
+// PATCH /customers/:id - Update customer
+// ============================================
+// COMPANY_ADMIN and AGENT can update customers they have access to
 router.patch(
   '/:id',
-  ValidationMiddleware.validateParams(companiesValidation.params),
-  ValidationMiddleware.validate(companiesValidation.update),
-  AuthMiddleware.authorize(UserRole.COMPANY_ADMIN),
-  TenantMiddleware.validateCompanyAccess,
-  companiesController.update
+  AuthMiddleware.authorize(UserRole.COMPANY_ADMIN, UserRole.AGENT),
+  ValidationMiddleware.validateParams(customersValidation.params),
+  ValidationMiddleware.validate(customersValidation.update),
+  customersController.update
 );
 
-router.post(
-  '/:id/logo',
-  ValidationMiddleware.validateParams(companiesValidation.params),
-  AuthMiddleware.authorize(UserRole.COMPANY_ADMIN),
-  TenantMiddleware.validateCompanyAccess,
-  upload.single('logo'),
-  companiesController.uploadLogo
-);
-
+// ============================================
+// DELETE /customers/:id - Delete customer
+// ============================================
+// COMPANY_ADMIN and AGENT can delete customers they have access to
 router.delete(
-  '/:id/logo',
-  ValidationMiddleware.validateParams(companiesValidation.params),
-  AuthMiddleware.authorize(UserRole.COMPANY_ADMIN),
-  TenantMiddleware.validateCompanyAccess,
-  companiesController.deleteLogo
+  '/:id',
+  AuthMiddleware.authorize(UserRole.COMPANY_ADMIN, UserRole.AGENT),
+  ValidationMiddleware.validateParams(customersValidation.params),
+  customersController.delete
 );
 
+// ============================================
+// POST /customers/:id/photo - Upload photo
+// ============================================
+// COMPANY_ADMIN and AGENT can upload photos for customers they have access to
+router.post(
+  '/:id/photo',
+  AuthMiddleware.authorize(UserRole.COMPANY_ADMIN, UserRole.AGENT),
+  ValidationMiddleware.validateParams(customersValidation.params),
+  upload.single('photo'),
+  customersController.uploadPhoto
+);
+
+// ============================================
+// GET /customers/:id/stats - Get customer stats
+// ============================================
+// All roles can view stats for customers they have access to
 router.get(
   '/:id/stats',
-  ValidationMiddleware.validateParams(companiesValidation.params),
-  AuthMiddleware.authorize(UserRole.COMPANY_ADMIN, UserRole.SUPER_ADMIN),
-  TenantMiddleware.validateCompanyAccess,
-  companiesController.getStats
+  AuthMiddleware.authorize(UserRole.SUPER_ADMIN, UserRole.COMPANY_ADMIN, UserRole.AGENT),
+  ValidationMiddleware.validateParams(customersValidation.params),
+  customersController.getStats
 );
 
 export default router;
