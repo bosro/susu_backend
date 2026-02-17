@@ -6,13 +6,27 @@ import { AuditAction, UserRole, CollectionStatus } from "../../types/enums";
 import { IPaginationQuery } from "../../types/interfaces";
 
 export class DailySummariesService {
+
+  // ✅ HELPER: Get branch IDs assigned to an agent — consistent with all other services
+  private async getAgentBranchIds(agentId: string): Promise<string[]> {
+    const assignments = await prisma.agentBranchAssignment.findMany({
+      where: { userId: agentId },
+      include: {
+        branch: { select: { id: true, isActive: true } },
+      },
+    });
+
+    return assignments
+      .filter(a => a.branch.isActive)
+      .map(a => a.branchId);
+  }
+
   async generate(
     companyId: string,
     branchId: string,
     agentId: string,
     date: Date
   ) {
-    // ✅ Validate required fields
     if (!companyId) {
       throw new Error("Company ID is required to generate daily summary");
     }
@@ -30,21 +44,9 @@ export class DailySummariesService {
       date: normalizedDate,
     });
 
-    console.log("📊 Generating daily summary:", {
-      companyId,
-      branchId,
-      agentId,
-      date: normalizedDate,
-    });
-
     // Check if summary already exists
     const existingSummary = await prisma.dailySummary.findFirst({
-      where: {
-        companyId,
-        branchId,
-        agentId,
-        date: normalizedDate,
-      },
+      where: { companyId, branchId, agentId, date: normalizedDate },
     });
 
     if (existingSummary) {
@@ -61,10 +63,7 @@ export class DailySummariesService {
         companyId,
         branchId,
         agentId,
-        collectionDate: {
-          gte: startOfDay,
-          lte: endOfDay,
-        },
+        collectionDate: { gte: startOfDay, lte: endOfDay },
       },
     });
 
@@ -94,8 +93,7 @@ export class DailySummariesService {
       (col) => col.status === CollectionStatus.MISSED
     ).length;
 
-    const totalCustomers = new Set(collections.map((col) => col.customerId))
-      .size;
+    const totalCustomers = new Set(collections.map((col) => col.customerId)).size;
 
     const summary = await prisma.dailySummary.create({
       data: {
@@ -110,20 +108,8 @@ export class DailySummariesService {
         missedCount,
       },
       include: {
-        branch: {
-          select: {
-            id: true,
-            name: true,
-          },
-        },
-        agent: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            email: true,
-          },
-        },
+        branch: { select: { id: true, name: true } },
+        agent: { select: { id: true, firstName: true, lastName: true, email: true } },
       },
     });
 
@@ -133,11 +119,7 @@ export class DailySummariesService {
       action: AuditAction.CREATE,
       entityType: "DAILY_SUMMARY",
       entityId: summary.id,
-      changes: {
-        date: normalizedDate,
-        totalCollected,
-        totalExpected,
-      },
+      changes: { date: normalizedDate, totalCollected, totalExpected },
     });
 
     console.log("✅ Daily summary created successfully");
@@ -150,22 +132,15 @@ export class DailySummariesService {
     query: IPaginationQuery,
     userRole: UserRole,
     userId?: string,
-    userBranchId?: string
+    // ✅ FIX: removed userBranchId param — was always undefined from req.user!.branchId
   ) {
     const { page, limit, skip, sortBy, sortOrder } =
       PaginationUtil.getPaginationParams(query);
 
     const where: any = {};
 
-    console.log("Daily summaries query:", {
-      companyId,
-      userRole,
-      userId,
-      userBranchId,
-      query,
-    });
+    console.log("Daily summaries query:", { companyId, userRole, userId, query });
 
-    // ✅ FIX: Only set companyId if not SUPER_ADMIN
     if (companyId !== null) {
       where.companyId = companyId;
     }
@@ -175,13 +150,22 @@ export class DailySummariesService {
       if (!userId) {
         throw new Error("Agent ID is required");
       }
+
+      // Agents can only see their own summaries
       where.agentId = userId;
 
-      if (userBranchId) {
-        where.branchId = userBranchId;
+      // ✅ FIX: Also filter by assigned branches — look up from DB instead of using
+      // req.user!.branchId which is always undefined for agents
+      const branchIds = await this.getAgentBranchIds(userId);
+
+      if (branchIds.length === 0) {
+        console.warn("⚠️ Agent has no assigned branches");
+        return PaginationUtil.formatPaginationResult([], 0, page, limit);
       }
 
-      console.log("✅ Agent scope applied - filtered to agentId:", userId);
+      where.branchId = { in: branchIds };
+      console.log("✅ Agent scope applied - agentId:", userId, "branchIds:", branchIds);
+
     } else if (userRole === UserRole.COMPANY_ADMIN) {
       if (query.branchId) {
         where.branchId = query.branchId;
@@ -211,20 +195,8 @@ export class DailySummariesService {
         take: limit,
         orderBy: { [sortBy]: sortOrder },
         include: {
-          branch: {
-            select: {
-              id: true,
-              name: true,
-            },
-          },
-          agent: {
-            select: {
-              id: true,
-              firstName: true,
-              lastName: true,
-              email: true,
-            },
-          },
+          branch: { select: { id: true, name: true } },
+          agent: { select: { id: true, firstName: true, lastName: true, email: true } },
         },
       }),
       prisma.dailySummary.count({ where }),
@@ -237,18 +209,17 @@ export class DailySummariesService {
 
   async getById(
     id: string,
-    companyId: string | null, // ✅ Allow null for SUPER_ADMIN
+    companyId: string | null,
     userRole: UserRole,
     userId?: string
   ) {
     const where: any = { id };
 
-    // ✅ Only add companyId filter if not SUPER_ADMIN
     if (companyId !== null) {
       where.companyId = companyId;
     }
 
-    // ✅ Agents can only see their own summaries
+    // Agents can only see their own summaries — agentId scopes correctly, no branchId needed
     if (userRole === UserRole.AGENT) {
       if (!userId) {
         throw new Error("Agent ID is required");
@@ -260,22 +231,8 @@ export class DailySummariesService {
     const summary = await prisma.dailySummary.findFirst({
       where,
       include: {
-        branch: {
-          select: {
-            id: true,
-            name: true,
-            address: true,
-          },
-        },
-        agent: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            email: true,
-            phone: true,
-          },
-        },
+        branch: { select: { id: true, name: true, address: true } },
+        agent: { select: { id: true, firstName: true, lastName: true, email: true, phone: true } },
       },
     });
 
@@ -288,23 +245,17 @@ export class DailySummariesService {
 
   async update(
     id: string,
-    companyId: string | null, // ✅ Allow null for SUPER_ADMIN
-    data: {
-      notes?: string;
-      isLocked?: boolean;
-    },
+    companyId: string | null,
+    data: { notes?: string; isLocked?: boolean },
     updatedBy: string
   ) {
     const where: any = { id };
 
-    // ✅ Only add companyId filter if provided
     if (companyId !== null) {
       where.companyId = companyId;
     }
 
-    const summary = await prisma.dailySummary.findFirst({
-      where,
-    });
+    const summary = await prisma.dailySummary.findFirst({ where });
 
     if (!summary) {
       throw new Error("Daily summary not found");
@@ -318,24 +269,13 @@ export class DailySummariesService {
       where: { id },
       data,
       include: {
-        branch: {
-          select: {
-            id: true,
-            name: true,
-          },
-        },
-        agent: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-          },
-        },
+        branch: { select: { id: true, name: true } },
+        agent: { select: { id: true, firstName: true, lastName: true } },
       },
     });
 
     await AuditLogUtil.log({
-      companyId: summary.companyId, // ✅ Use summary's companyId for audit log
+      companyId: summary.companyId,
       userId: updatedBy,
       action: AuditAction.UPDATE,
       entityType: "DAILY_SUMMARY",
@@ -347,6 +287,7 @@ export class DailySummariesService {
 
     return updated;
   }
+
   async lock(id: string, companyId: string | null, lockedBy: string) {
     const where: any = { id };
 
@@ -354,9 +295,7 @@ export class DailySummariesService {
       where.companyId = companyId;
     }
 
-    const summary = await prisma.dailySummary.findFirst({
-      where,
-    });
+    const summary = await prisma.dailySummary.findFirst({ where });
 
     if (!summary) {
       throw new Error("Daily summary not found");
@@ -370,24 +309,13 @@ export class DailySummariesService {
       where: { id },
       data: { isLocked: true },
       include: {
-        branch: {
-          select: {
-            id: true,
-            name: true,
-          },
-        },
-        agent: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-          },
-        },
+        branch: { select: { id: true, name: true } },
+        agent: { select: { id: true, firstName: true, lastName: true } },
       },
     });
 
     await AuditLogUtil.log({
-      companyId: summary.companyId, // ✅ Use summary's companyId
+      companyId: summary.companyId,
       userId: lockedBy,
       action: AuditAction.UPDATE,
       entityType: "DAILY_SUMMARY",
@@ -407,9 +335,7 @@ export class DailySummariesService {
       where.companyId = companyId;
     }
 
-    const summary = await prisma.dailySummary.findFirst({
-      where,
-    });
+    const summary = await prisma.dailySummary.findFirst({ where });
 
     if (!summary) {
       throw new Error("Daily summary not found");
@@ -423,24 +349,13 @@ export class DailySummariesService {
       where: { id },
       data: { isLocked: false },
       include: {
-        branch: {
-          select: {
-            id: true,
-            name: true,
-          },
-        },
-        agent: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-          },
-        },
+        branch: { select: { id: true, name: true } },
+        agent: { select: { id: true, firstName: true, lastName: true } },
       },
     });
 
     await AuditLogUtil.log({
-      companyId: summary.companyId, // ✅ Use summary's companyId
+      companyId: summary.companyId,
       userId: unlockedBy,
       action: AuditAction.UPDATE,
       entityType: "DAILY_SUMMARY",
@@ -464,27 +379,17 @@ export class DailySummariesService {
   ) {
     const where: any = {};
 
-    // ✅ FIX: Only set companyId if not SUPER_ADMIN
     if (companyId !== null) {
       where.companyId = companyId;
     }
 
-    if (filters.branchId) {
-      where.branchId = filters.branchId;
-    }
-
-    if (filters.agentId) {
-      where.agentId = filters.agentId;
-    }
+    if (filters.branchId) where.branchId = filters.branchId;
+    if (filters.agentId) where.agentId = filters.agentId;
 
     if (filters.startDate || filters.endDate) {
       where.date = {};
-      if (filters.startDate) {
-        where.date.gte = filters.startDate;
-      }
-      if (filters.endDate) {
-        where.date.lte = filters.endDate;
-      }
+      if (filters.startDate) where.date.gte = filters.startDate;
+      if (filters.endDate) where.date.lte = filters.endDate;
     }
 
     const summaries = await prisma.dailySummary.aggregate({
@@ -523,4 +428,3 @@ export class DailySummariesService {
     };
   }
 }
-

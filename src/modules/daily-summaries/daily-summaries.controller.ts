@@ -4,6 +4,7 @@ import { DailySummariesService } from './daily-summaries.service';
 import { ResponseUtil } from '../../utils/response.util';
 import { IAuthRequest } from '../../types/interfaces';
 import { UserRole } from '../../types/enums';
+import { prisma } from '../../config/database';
 
 export class DailySummariesController {
   private dailySummariesService: DailySummariesService;
@@ -25,17 +26,56 @@ export class DailySummariesController {
       let branchId: string;
 
       if (userRole === UserRole.AGENT) {
-        // ✅ Agents: branchId comes from their JWT token (assigned branch)
-        branchId = req.user!.branchId!;
-        if (!branchId) {
-          ResponseUtil.badRequest(res, 'You are not assigned to any branch. Please contact your administrator.');
+        // ✅ FIX: Agents don't have branchId on their JWT token.
+        //    Look up their assigned branches from AgentBranchAssignment.
+        const assignments = await prisma.agentBranchAssignment.findMany({
+          where: { userId: agentId },
+          include: {
+            branch: { select: { id: true, name: true, isActive: true } },
+          },
+        });
+
+        const activeBranches = assignments
+          .filter(a => a.branch.isActive)
+          .map(a => a.branch);
+
+        if (activeBranches.length === 0) {
+          ResponseUtil.badRequest(
+            res,
+            'You are not assigned to any active branch. Please contact your administrator.'
+          );
           return;
         }
+
+        if (activeBranches.length === 1) {
+          // Single branch — use it automatically
+          branchId = activeBranches[0].id;
+        } else {
+          // Multiple branches — agent must specify which one
+          if (!req.body.branchId) {
+            ResponseUtil.badRequest(
+              res,
+              'You are assigned to multiple branches. Please specify which branch to generate the summary for.'
+            );
+            return;
+          }
+
+          const isAssigned = activeBranches.some(b => b.id === req.body.branchId);
+          if (!isAssigned) {
+            ResponseUtil.badRequest(res, 'You do not have access to the selected branch.');
+            return;
+          }
+
+          branchId = req.body.branchId;
+        }
       } else {
-        // ✅ COMPANY_ADMIN / SUPER_ADMIN: branchId must be provided in request body
+        // COMPANY_ADMIN / SUPER_ADMIN: branchId must be provided in request body
         branchId = req.body.branchId;
         if (!branchId) {
-          ResponseUtil.badRequest(res, 'Branch ID is required. Please select a branch to generate the summary for.');
+          ResponseUtil.badRequest(
+            res,
+            'Branch ID is required. Please select a branch to generate the summary for.'
+          );
           return;
         }
       }
@@ -65,7 +105,7 @@ export class DailySummariesController {
         req.query,
         req.user!.role,
         req.user!.id,
-        req.user!.branchId || undefined
+        // ✅ FIX: removed req.user!.branchId — service looks up AgentBranchAssignment itself
       );
       ResponseUtil.success(res, result, 'Daily summaries retrieved successfully');
     } catch (error: any) {

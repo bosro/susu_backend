@@ -41,3 +41,4 @@ export const dailySummariesValidation = {
     branchId: Joi.string().uuid().optional(),
   }),
 };
+
