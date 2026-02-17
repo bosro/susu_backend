@@ -17,7 +17,7 @@ export class SusuAccountsController {
     next: NextFunction
   ): Promise<void> => {
     try {
-      // ✅ Super admin needs to specify companyId in request body
+      // Super admin needs to specify companyId in request body
       const companyId = req.user!.companyId || req.body.companyId;
 
       if (!companyId) {
@@ -42,12 +42,13 @@ export class SusuAccountsController {
     next: NextFunction
   ): Promise<void> => {
     try {
-      const companyId = req.user!.companyId;  // ✅ Can be null for SUPER_ADMIN
+      const companyId = req.user!.companyId;  // Can be null for SUPER_ADMIN
       const result = await this.susuAccountsService.getAll(
         companyId,
         req.query,
         req.user!.role,
-        req.user!.branchId || undefined
+        // ✅ FIX: Pass userId so service can look up AgentBranchAssignment
+        req.user!.id
       );
       ResponseUtil.success(res, result, 'Susu accounts retrieved successfully');
     } catch (error: any) {
@@ -61,12 +62,13 @@ export class SusuAccountsController {
     next: NextFunction
   ): Promise<void> => {
     try {
-      const companyId = req.user!.companyId;  // ✅ Can be null for SUPER_ADMIN
+      const companyId = req.user!.companyId;  // Can be null for SUPER_ADMIN
       const account = await this.susuAccountsService.getById(
         req.params.id,
         companyId,
         req.user!.role,
-        req.user!.branchId || undefined
+        // ✅ FIX: Pass userId so service can look up AgentBranchAssignment
+        req.user!.id
       );
       ResponseUtil.success(res, account, 'Susu account retrieved successfully');
     } catch (error: any) {
@@ -80,7 +82,7 @@ export class SusuAccountsController {
     next: NextFunction
   ): Promise<void> => {
     try {
-      const companyId = req.user!.companyId;  // ✅ Can be null for SUPER_ADMIN
+      const companyId = req.user!.companyId;  // Can be null for SUPER_ADMIN
       const account = await this.susuAccountsService.update(
         req.params.id,
         companyId,
@@ -99,7 +101,7 @@ export class SusuAccountsController {
     next: NextFunction
   ): Promise<void> => {
     try {
-      const companyId = req.user!.companyId;  // ✅ Can be null for SUPER_ADMIN
+      const companyId = req.user!.companyId;  // Can be null for SUPER_ADMIN
       const result = await this.susuAccountsService.withdraw(
         req.params.id,
         companyId,
@@ -118,7 +120,7 @@ export class SusuAccountsController {
     next: NextFunction
   ): Promise<void> => {
     try {
-      const companyId = req.user!.companyId;  // ✅ Can be null for SUPER_ADMIN
+      const companyId = req.user!.companyId;  // Can be null for SUPER_ADMIN
       const result = await this.susuAccountsService.getTransactions(
         req.params.id,
         companyId,
@@ -130,4 +132,3 @@ export class SusuAccountsController {
     }
   };
 }
-

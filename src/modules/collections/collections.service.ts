@@ -1,5 +1,6 @@
 // src/modules/collections/collections.service.ts
-// ✅ UPDATED - Added unread count tracking and mark as read functionality
+// ✅ FIXED: markMultipleAsRead uses individual updates instead of updateMany
+//    Prisma's updateMany does NOT support array push operations on Postgres arrays
 
 import { prisma } from "../../config/database";
 import { PaginationUtil } from "../../utils/pagination.util";
@@ -14,29 +15,26 @@ import {
 import { IPaginationQuery } from "../../types/interfaces";
 
 export class CollectionsService {
-  // ✅ NEW: Get unread collection count for a user
-  async getUnreadCount(userId: string, companyId: string | null, userRole: UserRole): Promise<number> {
+  // Get unread collection count for a user
+  async getUnreadCount(
+    userId: string,
+    companyId: string | null,
+    userRole: UserRole,
+  ): Promise<number> {
     const where: any = {};
 
-    // Company filter
     if (companyId !== null) {
       where.companyId = companyId;
     }
 
-    // Role-based filtering
     if (userRole === UserRole.AGENT) {
-      // Agents only see collections they created
       where.agentId = userId;
-    } else if (userRole === UserRole.COMPANY_ADMIN) {
-      // Company admins see all company collections
-      // No additional filter needed
     }
 
-    // ✅ Collections not viewed by this user
     where.NOT = {
       viewedBy: {
-        has: userId
-      }
+        has: userId,
+      },
     };
 
     const count = await prisma.collection.count({ where });
@@ -46,55 +44,82 @@ export class CollectionsService {
     return count;
   }
 
-  // ✅ NEW: Mark collection as read by user
+  // Mark a single collection as read by user
   async markAsRead(collectionId: string, userId: string): Promise<void> {
     const collection = await prisma.collection.findUnique({
       where: { id: collectionId },
-      select: { viewedBy: true }
+      select: { viewedBy: true },
     });
 
     if (!collection) {
       throw new Error("Collection not found");
     }
 
-    // Add user to viewedBy array if not already there
     if (!collection.viewedBy.includes(userId)) {
       await prisma.collection.update({
         where: { id: collectionId },
         data: {
           viewedBy: {
-            push: userId
-          }
-        }
+            push: userId,
+          },
+        },
       });
 
-      console.log(`✅ Collection ${collectionId} marked as read by user ${userId}`);
+      console.log(
+        `✅ Collection ${collectionId} marked as read by user ${userId}`,
+      );
     }
   }
 
-  // ✅ NEW: Mark multiple collections as read
-  async markMultipleAsRead(collectionIds: string[], userId: string): Promise<void> {
-    await prisma.collection.updateMany({
+  // ✅ FIX: Mark multiple collections as read
+  //    Prisma's updateMany() does NOT support array push on Postgres array fields.
+  //    It only supports scalar operations (set). Using it with { push: userId }
+  //    silently does nothing or throws depending on the Prisma version.
+  //    Solution: fetch unread IDs first, then update each individually in a transaction.
+  async markMultipleAsRead(
+    collectionIds: string[],
+    userId: string,
+  ): Promise<void> {
+    // First find which ones actually need marking (not already read by this user)
+    const unread = await prisma.collection.findMany({
       where: {
         id: { in: collectionIds },
         NOT: {
-          viewedBy: {
-            has: userId
-          }
-        }
+          viewedBy: { has: userId },
+        },
       },
-      data: {
-        viewedBy: {
-          push: userId
-        }
-      }
+      select: { id: true },
     });
 
-    console.log(`✅ Marked ${collectionIds.length} collections as read for user ${userId}`);
+    if (unread.length === 0) {
+      console.log(
+        `ℹ️ All ${collectionIds.length} collections already read by user ${userId}`,
+      );
+      return;
+    }
+
+    // Update each unread collection individually inside a transaction
+    await prisma.$transaction(
+      unread.map((col) =>
+        prisma.collection.update({
+          where: { id: col.id },
+          data: {
+            viewedBy: { push: userId },
+          },
+        }),
+      ),
+    );
+
+    console.log(
+      `✅ Marked ${unread.length}/${collectionIds.length} collections as read for user ${userId}`,
+    );
   }
 
-  // ✅ EXISTING: Validate agent branch access
-  async validateAgentBranchAccess(agentId: string, branchId: string): Promise<void> {
+  // Validate agent branch access
+  async validateAgentBranchAccess(
+    agentId: string,
+    branchId: string,
+  ): Promise<void> {
     const assignment = await prisma.agentBranchAssignment.findFirst({
       where: {
         userId: agentId,
@@ -112,18 +137,18 @@ export class CollectionsService {
 
     if (!assignment) {
       throw new Error(
-        'You do not have access to this branch. Please select a branch assigned to you.'
+        "You do not have access to this branch. Please select a branch assigned to you.",
       );
     }
 
     if (!assignment.branch.isActive) {
       throw new Error(
-        `Branch "${assignment.branch.name}" is currently inactive and cannot accept collections.`
+        `Branch "${assignment.branch.name}" is currently inactive and cannot accept collections.`,
       );
     }
   }
 
-  // ✅ EXISTING: Get agent branches
+  // Get agent branches (reference implementation — used by getAll and getById)
   async getAgentBranches(agentId: string) {
     const assignments = await prisma.agentBranchAssignment.findMany({
       where: {
@@ -142,14 +167,12 @@ export class CollectionsService {
       },
       orderBy: {
         branch: {
-          name: 'asc',
+          name: "asc",
         },
       },
     });
 
-    return assignments
-      .filter(a => a.branch.isActive)
-      .map(a => a.branch);
+    return assignments.filter((a) => a.branch.isActive).map((a) => a.branch);
   }
 
   async create(
@@ -166,7 +189,7 @@ export class CollectionsService {
       notes?: string;
       latitude?: string;
       longitude?: string;
-    }
+    },
   ) {
     console.log("💰 Creating collection:", {
       companyId,
@@ -176,7 +199,6 @@ export class CollectionsService {
       status: data.status || CollectionStatus.COLLECTED,
     });
 
-    // Validate customer
     const customer = await prisma.customer.findFirst({
       where: { id: data.customerId, companyId },
     });
@@ -189,7 +211,6 @@ export class CollectionsService {
       throw new Error("Customer is not active");
     }
 
-    // Validate susu account
     const susuAccount = await prisma.susuAccount.findFirst({
       where: {
         id: data.susuAccountId,
@@ -208,7 +229,6 @@ export class CollectionsService {
       throw new Error("Susu account is not active");
     }
 
-    // Validate amount
     if (data.amount < 0) {
       throw new Error("Collection amount cannot be negative");
     }
@@ -218,7 +238,6 @@ export class CollectionsService {
     }
 
     const collection = await prisma.$transaction(async (tx) => {
-      // Create collection with creator marked as viewed
       const newCollection = await tx.collection.create({
         data: {
           companyId,
@@ -233,7 +252,7 @@ export class CollectionsService {
           notes: data.notes,
           latitude: data.latitude,
           longitude: data.longitude,
-          viewedBy: [agentId], // ✅ Creator has already "seen" their own collection
+          viewedBy: [agentId], // Creator has already "seen" their own collection
         },
         include: {
           customer: {
@@ -261,7 +280,6 @@ export class CollectionsService {
         },
       });
 
-      // Update account balance if collection is successful (not missed)
       if (data.status !== CollectionStatus.MISSED && data.amount > 0) {
         const currentBalance = Number(susuAccount.balance);
         const newBalance = currentBalance + data.amount;
@@ -271,7 +289,6 @@ export class CollectionsService {
           data: { balance: newBalance },
         });
 
-        // Create transaction record
         await tx.transaction.create({
           data: {
             susuAccountId: data.susuAccountId,
@@ -285,7 +302,7 @@ export class CollectionsService {
         });
 
         console.log(
-          `✅ Account balance updated: ${currentBalance} → ${newBalance}`
+          `✅ Account balance updated: ${currentBalance} → ${newBalance}`,
         );
       }
 
@@ -318,7 +335,7 @@ export class CollectionsService {
       endDate?: string;
     },
     userRole: UserRole,
-    userId?: string
+    userId?: string,
   ) {
     const { page, limit, skip, sortBy, sortOrder } =
       PaginationUtil.getPaginationParams(query);
@@ -332,20 +349,18 @@ export class CollectionsService {
       queryParams: query,
     });
 
-    // Company filter
     if (companyId !== null) {
       where.companyId = companyId;
     }
 
-    // Role-based data scoping
+    // Role-based data scoping — already uses correct AgentBranchAssignment pattern
     if (userRole === UserRole.AGENT) {
       if (!userId) {
-        console.warn("❌ Agent has no user ID");
         throw new Error("Agent ID is required");
       }
 
       const agentBranches = await this.getAgentBranches(userId);
-      const branchIds = agentBranches.map(b => b.id);
+      const branchIds = agentBranches.map((b) => b.id);
 
       if (branchIds.length === 0) {
         console.warn("⚠️ Agent has no assigned branches");
@@ -355,7 +370,9 @@ export class CollectionsService {
       where.agentId = userId;
       where.branchId = { in: branchIds };
 
-      console.log(`✅ Agent scope applied - filtered to branches: ${branchIds.join(', ')}`);
+      console.log(
+        `✅ Agent scope applied - filtered to branches: ${branchIds.join(", ")}`,
+      );
     } else if (userRole === UserRole.COMPANY_ADMIN) {
       if (query.branchId) {
         where.branchId = query.branchId;
@@ -367,7 +384,6 @@ export class CollectionsService {
       console.log("✅ Company admin scope - can see all company data");
     }
 
-    // Additional filters
     if (query.customerId) {
       where.customerId = query.customerId;
     }
@@ -380,27 +396,24 @@ export class CollectionsService {
       where.status = query.status;
     }
 
-    // Date handling
     if (query.startDate || query.endDate) {
       where.collectionDate = {};
-      
+
       if (query.startDate) {
         try {
           const startDate = new Date(query.startDate);
           startDate.setHours(0, 0, 0, 0);
           where.collectionDate.gte = startDate;
-          console.log("📅 Start date filter:", startDate);
         } catch (error) {
           console.error("❌ Invalid start date:", query.startDate);
         }
       }
-      
+
       if (query.endDate) {
         try {
           const endDate = new Date(query.endDate);
           endDate.setHours(23, 59, 59, 999);
           where.collectionDate.lte = endDate;
-          console.log("📅 End date filter:", endDate);
         } catch (error) {
           console.error("❌ Invalid end date:", query.endDate);
         }
@@ -472,21 +485,20 @@ export class CollectionsService {
       prisma.collection.count({ where }),
     ]);
 
-    // ✅ Add isRead flag to each collection
-    const collectionsWithReadStatus = collections.map(collection => ({
+    const collectionsWithReadStatus = collections.map((collection) => ({
       ...collection,
-      isRead: userId ? collection.viewedBy.includes(userId) : true
+      isRead: userId ? collection.viewedBy.includes(userId) : true,
     }));
 
     console.log(
-      `✅ Found ${collections.length} collections out of ${total} total`
+      `✅ Found ${collections.length} collections out of ${total} total`,
     );
 
     return PaginationUtil.formatPaginationResult(
       collectionsWithReadStatus,
       total,
       page,
-      limit
+      limit,
     );
   }
 
@@ -494,7 +506,7 @@ export class CollectionsService {
     id: string,
     companyId: string | null,
     userRole: UserRole,
-    userId?: string
+    userId?: string,
   ) {
     const where: any = { id };
 
@@ -508,13 +520,13 @@ export class CollectionsService {
       }
 
       const agentBranches = await this.getAgentBranches(userId);
-      const branchIds = agentBranches.map(b => b.id);
+      const branchIds = agentBranches.map((b) => b.id);
 
       where.agentId = userId;
       where.branchId = { in: branchIds };
-      
+
       console.log(
-        "✅ Agent accessing collection - filtered to assigned branches"
+        "✅ Agent accessing collection - filtered to assigned branches",
       );
     }
 
@@ -583,14 +595,13 @@ export class CollectionsService {
       throw new Error("Collection not found or you do not have access");
     }
 
-    // ✅ Mark as read when user views the collection
     if (userId) {
       await this.markAsRead(id, userId);
     }
 
     return {
       ...collection,
-      isRead: userId ? collection.viewedBy.includes(userId) : true
+      isRead: userId ? collection.viewedBy.includes(userId) : true,
     };
   }
 
@@ -603,7 +614,7 @@ export class CollectionsService {
       notes?: string;
     },
     updatedBy: string,
-    userRole: UserRole
+    userRole: UserRole,
   ) {
     if (
       userRole !== UserRole.COMPANY_ADMIN &&
@@ -619,9 +630,7 @@ export class CollectionsService {
 
     const collection = await prisma.collection.findFirst({
       where,
-      include: {
-        susuAccount: true,
-      },
+      include: { susuAccount: true },
     });
 
     if (!collection) {
@@ -649,20 +658,14 @@ export class CollectionsService {
       });
 
       await prisma.$transaction([
-        prisma.collection.update({
-          where: { id },
-          data,
-        }),
+        prisma.collection.update({ where: { id }, data }),
         prisma.susuAccount.update({
           where: { id: collection.susuAccountId },
           data: { balance: newBalance },
         }),
       ]);
     } else {
-      await prisma.collection.update({
-        where: { id },
-        data,
-      });
+      await prisma.collection.update({ where: { id }, data });
     }
 
     await AuditLogUtil.log({
@@ -683,7 +686,7 @@ export class CollectionsService {
     id: string,
     companyId: string | null,
     deletedBy: string,
-    userRole: UserRole
+    userRole: UserRole,
   ) {
     if (
       userRole !== UserRole.COMPANY_ADMIN &&
@@ -699,9 +702,7 @@ export class CollectionsService {
 
     const collection = await prisma.collection.findFirst({
       where,
-      include: {
-        susuAccount: true,
-      },
+      include: { susuAccount: true },
     });
 
     if (!collection) {
@@ -755,7 +756,7 @@ export class CollectionsService {
       endDate?: string;
       branchId?: string;
       agentId?: string;
-    }
+    },
   ) {
     const where: any = {};
 
@@ -763,17 +764,12 @@ export class CollectionsService {
       where.companyId = companyId;
     }
 
-    if (filters.branchId) {
-      where.branchId = filters.branchId;
-    }
-
-    if (filters.agentId) {
-      where.agentId = filters.agentId;
-    }
+    if (filters.branchId) where.branchId = filters.branchId;
+    if (filters.agentId) where.agentId = filters.agentId;
 
     if (filters.startDate || filters.endDate) {
       where.collectionDate = {};
-      
+
       if (filters.startDate) {
         try {
           const startDate = new Date(filters.startDate);
@@ -783,7 +779,7 @@ export class CollectionsService {
           console.error("❌ Invalid start date in stats:", filters.startDate);
         }
       }
-      
+
       if (filters.endDate) {
         try {
           const endDate = new Date(filters.endDate);
@@ -842,4 +838,3 @@ export class CollectionsService {
     };
   }
 }
-

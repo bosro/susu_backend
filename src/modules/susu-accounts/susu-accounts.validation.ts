@@ -35,3 +35,4 @@ export const susuAccountsValidation = {
     id: Joi.string().uuid().required(),
   }),
 };
+
