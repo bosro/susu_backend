@@ -3,6 +3,7 @@ import { Response, NextFunction } from 'express';
 import { DailySummariesService } from './daily-summaries.service';
 import { ResponseUtil } from '../../utils/response.util';
 import { IAuthRequest } from '../../types/interfaces';
+import { UserRole } from '../../types/enums';
 
 export class DailySummariesController {
   private dailySummariesService: DailySummariesService;
@@ -11,7 +12,6 @@ export class DailySummariesController {
     this.dailySummariesService = new DailySummariesService();
   }
 
-  // ✅ Arrow function to preserve 'this' context
   generate = async (
     req: IAuthRequest,
     res: Response,
@@ -19,8 +19,26 @@ export class DailySummariesController {
   ): Promise<void> => {
     try {
       const companyId = req.user!.companyId!;
-      const branchId = req.user!.branchId!;
       const agentId = req.user!.id;
+      const userRole = req.user!.role;
+
+      let branchId: string;
+
+      if (userRole === UserRole.AGENT) {
+        // ✅ Agents: branchId comes from their JWT token (assigned branch)
+        branchId = req.user!.branchId!;
+        if (!branchId) {
+          ResponseUtil.badRequest(res, 'You are not assigned to any branch. Please contact your administrator.');
+          return;
+        }
+      } else {
+        // ✅ COMPANY_ADMIN / SUPER_ADMIN: branchId must be provided in request body
+        branchId = req.body.branchId;
+        if (!branchId) {
+          ResponseUtil.badRequest(res, 'Branch ID is required. Please select a branch to generate the summary for.');
+          return;
+        }
+      }
 
       const summary = await this.dailySummariesService.generate(
         companyId,
@@ -28,13 +46,13 @@ export class DailySummariesController {
         agentId,
         new Date(req.body.date)
       );
+
       ResponseUtil.created(res, summary, 'Daily summary generated successfully');
     } catch (error: any) {
       next(error);
     }
   };
 
-  // ✅ Arrow function to preserve 'this' context
   getAll = async (
     req: IAuthRequest,
     res: Response,
@@ -55,7 +73,6 @@ export class DailySummariesController {
     }
   };
 
-  // ✅ Arrow function to preserve 'this' context
   getById = async (
     req: IAuthRequest,
     res: Response,
@@ -75,7 +92,6 @@ export class DailySummariesController {
     }
   };
 
-  // ✅ Arrow function to preserve 'this' context
   update = async (
     req: IAuthRequest,
     res: Response,
@@ -95,7 +111,6 @@ export class DailySummariesController {
     }
   };
 
-  // ✅ Arrow function to preserve 'this' context
   lock = async (
     req: IAuthRequest,
     res: Response,
@@ -114,7 +129,6 @@ export class DailySummariesController {
     }
   };
 
-  // ✅ Arrow function to preserve 'this' context
   unlock = async (
     req: IAuthRequest,
     res: Response,
@@ -133,7 +147,6 @@ export class DailySummariesController {
     }
   };
 
-  // ✅ Arrow function to preserve 'this' context
   getStats = async (
     req: IAuthRequest,
     res: Response,

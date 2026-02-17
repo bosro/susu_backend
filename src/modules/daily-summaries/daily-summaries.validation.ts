@@ -14,7 +14,7 @@ export const dailySummariesValidation = {
   }),
 
   update: Joi.object({
-    notes: Joi.string().optional(),
+    notes: Joi.string().allow('').optional(),
     isLocked: Joi.boolean().optional(),
   }),
 
@@ -34,7 +34,10 @@ export const dailySummariesValidation = {
     id: Joi.string().uuid().required(),
   }),
 
+  // ✅ FIXED: branchId is optional here — agents get it from their JWT,
+  // admins must send it in the body. Controller handles the role-based logic.
   generateParams: Joi.object({
     date: Joi.date().required(),
+    branchId: Joi.string().uuid().optional(),
   }),
 };

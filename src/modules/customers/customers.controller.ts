@@ -35,12 +35,13 @@ export class CustomersController {
     next: NextFunction
   ): Promise<void> => {
     try {
-      const companyId = req.user!.companyId;  // ✅ Can be null for SUPER_ADMIN
+      const companyId = req.user!.companyId;  // Can be null for SUPER_ADMIN
       const result = await this.customersService.getAll(
         companyId,
         req.query,
         req.user!.role,
-        req.user!.branchId || undefined
+        // ✅ FIX: Pass userId (not branchId) so service can look up AgentBranchAssignment
+        req.user!.id
       );
       ResponseUtil.success(res, result, 'Customers retrieved successfully');
     } catch (error: any) {
@@ -54,12 +55,13 @@ export class CustomersController {
     next: NextFunction
   ): Promise<void> => {
     try {
-      const companyId = req.user!.companyId;  // ✅ Can be null for SUPER_ADMIN
+      const companyId = req.user!.companyId;  // Can be null for SUPER_ADMIN
       const customer = await this.customersService.getById(
         req.params.id,
         companyId,
         req.user!.role,
-        req.user!.branchId || undefined
+        // ✅ FIX: Pass userId (not branchId) so service can look up AgentBranchAssignment
+        req.user!.id
       );
       ResponseUtil.success(res, customer, 'Customer retrieved successfully');
     } catch (error: any) {
@@ -73,7 +75,7 @@ export class CustomersController {
     next: NextFunction
   ): Promise<void> => {
     try {
-      const companyId = req.user!.companyId;  // ✅ Can be null for SUPER_ADMIN
+      const companyId = req.user!.companyId;  // Can be null for SUPER_ADMIN
       const customer = await this.customersService.update(
         req.params.id,
         companyId,
@@ -92,7 +94,7 @@ export class CustomersController {
     next: NextFunction
   ): Promise<void> => {
     try {
-      const companyId = req.user!.companyId;  // ✅ Can be null for SUPER_ADMIN
+      const companyId = req.user!.companyId;  // Can be null for SUPER_ADMIN
       const result = await this.customersService.delete(
         req.params.id,
         companyId,
@@ -115,7 +117,7 @@ export class CustomersController {
         return;
       }
 
-      const companyId = req.user!.companyId;  // ✅ Can be null for SUPER_ADMIN
+      const companyId = req.user!.companyId;  // Can be null for SUPER_ADMIN
       const customer = await this.customersService.uploadPhoto(
         req.params.id,
         companyId,
@@ -134,7 +136,7 @@ export class CustomersController {
     next: NextFunction
   ): Promise<void> => {
     try {
-      const companyId = req.user!.companyId;  // ✅ Can be null for SUPER_ADMIN
+      const companyId = req.user!.companyId;  // Can be null for SUPER_ADMIN
       const stats = await this.customersService.getCustomerStats(
         req.params.id,
         companyId

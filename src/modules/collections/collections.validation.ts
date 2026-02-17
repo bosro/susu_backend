@@ -49,3 +49,4 @@ export const collectionsValidation = {
     id: Joi.string().uuid().required(),
   }),
 };
+
