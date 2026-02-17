@@ -7,6 +7,23 @@ import { AuditAction, UserRole } from '../../types/enums';
 import { IPaginationQuery } from '../../types/interfaces';
 
 export class CustomersService {
+
+  // ✅ HELPER: Get branch IDs assigned to an agent (mirrors collections.service.ts pattern)
+  private async getAgentBranchIds(agentId: string): Promise<string[]> {
+    const assignments = await prisma.agentBranchAssignment.findMany({
+      where: { userId: agentId },
+      include: {
+        branch: {
+          select: { id: true, isActive: true },
+        },
+      },
+    });
+
+    return assignments
+      .filter(a => a.branch.isActive)
+      .map(a => a.branchId);
+  }
+
   async create(
     companyId: string,
     data: {
@@ -78,7 +95,8 @@ export class CustomersService {
     companyId: string | null,
     query: IPaginationQuery,
     userRole: UserRole,
-    userBranchId?: string
+    // ✅ FIX: accept userId instead of userBranchId — agents have multiple branches
+    userId?: string
   ) {
     const { page, limit, skip, sortBy, sortOrder } =
       PaginationUtil.getPaginationParams(query);
@@ -88,19 +106,30 @@ export class CustomersService {
     console.log('Customers query:', {
       companyId,
       userRole,
-      userBranchId,
+      userId,
       query,
     });
 
-    // ✅ FIX: Only set companyId if not SUPER_ADMIN
+    // ✅ Only set companyId if not SUPER_ADMIN
     if (companyId !== null) {
       where.companyId = companyId;
     }
 
-    // Role-based filtering
-    if (userRole === UserRole.AGENT && userBranchId) {
-      where.branchId = userBranchId;
-      console.log('✅ Agent scope applied - filtered to branchId:', userBranchId);
+    // ✅ FIX: Role-based filtering — look up agent's assigned branches from DB
+    if (userRole === UserRole.AGENT) {
+      if (!userId) {
+        throw new Error('Agent ID is required');
+      }
+
+      const branchIds = await this.getAgentBranchIds(userId);
+
+      if (branchIds.length === 0) {
+        console.warn('⚠️ Agent has no assigned branches');
+        return PaginationUtil.formatPaginationResult([], 0, page, limit);
+      }
+
+      where.branchId = { in: branchIds };
+      console.log('✅ Agent scope applied - filtered to branchIds:', branchIds);
     }
 
     // Additional filters
@@ -135,7 +164,7 @@ export class CustomersService {
             select: {
               id: true,
               name: true,
-              company: {  // ✅ Include company info for super admin view
+              company: {
                 select: {
                   id: true,
                   name: true,
@@ -161,24 +190,33 @@ export class CustomersService {
 
   async getById(
     id: string,
-    companyId: string | null,  // ✅ Now accepts null
+    companyId: string | null,
     userRole: UserRole,
-    branchId?: string
+    // ✅ FIX: renamed param — we need userId to look up branches, not a single branchId
+    userId?: string
   ) {
     const where: any = { id };
 
-    // ✅ FIX: Only filter by companyId if not SUPER_ADMIN
+    // ✅ Only filter by companyId if not SUPER_ADMIN
     if (companyId !== null) {
       where.companyId = companyId;
     }
 
-    // ✅ Agents can only see customers in their branch
+    // ✅ FIX: Agents can only see customers in their assigned branches
+    //    Look up from AgentBranchAssignment — DO NOT rely on req.user.branchId
     if (userRole === UserRole.AGENT) {
-      if (!branchId) {
+      if (!userId) {
+        throw new Error('Agent ID is required');
+      }
+
+      const branchIds = await this.getAgentBranchIds(userId);
+
+      if (branchIds.length === 0) {
         throw new Error('Agent must be assigned to a branch');
       }
-      where.branchId = branchId;
-      console.log('✅ Agent accessing customer - filtered to branchId:', branchId);
+
+      where.branchId = { in: branchIds };
+      console.log('✅ Agent accessing customer - filtered to branchIds:', branchIds);
     }
 
     console.log('getById where clause:', JSON.stringify(where, null, 2));
@@ -191,7 +229,7 @@ export class CustomersService {
             id: true,
             name: true,
             address: true,
-            company: {  // ✅ Include company info for super admin view
+            company: {
               select: {
                 id: true,
                 name: true,
@@ -229,7 +267,7 @@ export class CustomersService {
 
   async update(
     id: string,
-    companyId: string | null,  // ✅ Now accepts null
+    companyId: string | null,
     data: {
       firstName?: string;
       lastName?: string;
@@ -257,9 +295,9 @@ export class CustomersService {
     // Validate branch if provided
     if (data.branchId && data.branchId !== customer.branchId) {
       const branch = await prisma.branch.findFirst({
-        where: { 
-          id: data.branchId, 
-          ...(companyId !== null ? { companyId } : {})  // ✅ Conditional companyId
+        where: {
+          id: data.branchId,
+          ...(companyId !== null ? { companyId } : {}),
         },
       });
 
@@ -301,7 +339,7 @@ export class CustomersService {
     });
 
     await AuditLogUtil.log({
-      companyId: customer.companyId,  // ✅ Use customer's companyId for audit
+      companyId: customer.companyId,
       userId: updatedBy,
       action: AuditAction.UPDATE,
       entityType: 'CUSTOMER',
@@ -313,7 +351,6 @@ export class CustomersService {
   }
 
   async delete(id: string, companyId: string | null, deletedBy: string) {
-    // ✅ Build where clause conditionally
     const where: any = { id };
     if (companyId !== null) {
       where.companyId = companyId;
@@ -335,7 +372,6 @@ export class CustomersService {
       throw new Error('Customer not found');
     }
 
-    // ✅ Enhanced validation
     if (customer._count.susuAccounts > 0) {
       throw new Error(
         `Cannot delete customer with ${customer._count.susuAccounts} active susu account(s). Please deactivate or transfer accounts first.`
@@ -351,7 +387,7 @@ export class CustomersService {
     await prisma.customer.delete({ where: { id } });
 
     await AuditLogUtil.log({
-      companyId: customer.companyId,  // ✅ Use customer's companyId for audit
+      companyId: customer.companyId,
       userId: deletedBy,
       action: AuditAction.DELETE,
       entityType: 'CUSTOMER',
@@ -363,11 +399,10 @@ export class CustomersService {
 
   async uploadPhoto(
     id: string,
-    companyId: string | null,  // ✅ Now accepts null
+    companyId: string | null,
     file: Buffer,
     uploadedBy: string
   ) {
-    // ✅ Build where clause conditionally
     const where: any = { id };
     if (companyId !== null) {
       where.companyId = companyId;
@@ -386,14 +421,12 @@ export class CustomersService {
         await FileUploadUtil.deleteImage(publicId);
       } catch (error) {
         console.warn('Failed to delete old photo:', error);
-        // Continue with upload even if deletion fails
       }
     }
 
-    // Upload new photo
     const { url } = await FileUploadUtil.uploadImage(
       file,
-      `customers/${customer.companyId}`  // ✅ Use customer's companyId
+      `customers/${customer.companyId}`
     );
 
     const updated = await prisma.customer.update({
@@ -410,7 +443,7 @@ export class CustomersService {
     });
 
     await AuditLogUtil.log({
-      companyId: customer.companyId,  // ✅ Use customer's companyId for audit
+      companyId: customer.companyId,
       userId: uploadedBy,
       action: AuditAction.UPDATE,
       entityType: 'CUSTOMER',
@@ -422,7 +455,6 @@ export class CustomersService {
   }
 
   async getCustomerStats(id: string, companyId: string | null) {
-    // ✅ Build where clause conditionally
     const where: any = { id };
     if (companyId !== null) {
       where.companyId = companyId;

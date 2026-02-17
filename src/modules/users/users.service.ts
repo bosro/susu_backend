@@ -510,3 +510,5 @@ export class UsersService {
     return assignments.map((a) => a.branch);
   }
 }
+
+
