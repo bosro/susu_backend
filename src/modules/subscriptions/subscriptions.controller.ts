@@ -1,6 +1,6 @@
 // src/modules/subscriptions/subscriptions.controller.ts
 import { Response, NextFunction } from 'express';
-import { SubscriptionsService, SubscriptionPlan } from './subscriptions.service';
+import { SubscriptionsService } from './subscriptions.service';
 import { ResponseUtil } from '../../utils/response.util';
 import { IAuthRequest } from '../../types/interfaces';
 
@@ -108,7 +108,7 @@ export class SubscriptionsController {
   };
 
   // GET /subscriptions/stats
-  getStats = async (req: IAuthRequest, res: Response, next: NextFunction): Promise<void> => {
+  getStats = async (_req: IAuthRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
       const result = await this.service.getSubscriptionStats();
       ResponseUtil.success(res, result, 'Subscription stats retrieved successfully');
