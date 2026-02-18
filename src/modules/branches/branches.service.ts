@@ -1,5 +1,5 @@
 // src/modules/branches/branches.service.ts
-// ✅ Updated to support filtering by agent's assigned branches
+// ✅ FIXED: Parse isActive query param from string to boolean for Prisma
 
 import { prisma } from '../../config/database';
 import { PaginationUtil } from '../../utils/pagination.util';
@@ -50,7 +50,6 @@ export class BranchesService {
 
     const where: any = {};
 
-    // ✅ Only filter by companyId if not SUPER_ADMIN
     if (companyId !== null) {
       where.companyId = companyId;
     }
@@ -62,13 +61,16 @@ export class BranchesService {
       ];
     }
 
+    // ✅ FIX: Parse isActive from string to boolean
+    //    Frontend sends ?isActive=true which becomes the STRING 'true'
+    //    Prisma expects boolean true, so we must parse it
     if (query.isActive !== undefined) {
-      where.isActive = query.isActive;
+      // Cast to any because at runtime it's a string, but TypeScript thinks it's boolean
+      where.isActive = query.isActive === true || (query.isActive as any) === 'true';
     }
 
-    // ✅ NEW: Filter by agent's assigned branches
+    // ✅ Filter by agent's assigned branches
     if (query.userRole === UserRole.AGENT && query.userId) {
-      // Get branches assigned to this agent
       const assignments = await prisma.agentBranchAssignment.findMany({
         where: { userId: query.userId },
         select: { branchId: true },
@@ -77,11 +79,10 @@ export class BranchesService {
       const branchIds = assignments.map(a => a.branchId);
 
       if (branchIds.length === 0) {
-        // Agent has no assigned branches - return empty result
+        console.log(`⚠️ Agent ${query.userId} has no assigned branches`);
         return PaginationUtil.formatPaginationResult([], 0, page, limit);
       }
 
-      // Filter to only show assigned branches
       where.id = { in: branchIds };
       
       console.log(`✅ Filtering branches for agent ${query.userId}: ${branchIds.length} branches`);
@@ -101,7 +102,6 @@ export class BranchesService {
               status: true,
             },
           },
-          // ✅ Include count of assigned agents
           assignedAgents: {
             select: {
               id: true,
@@ -126,13 +126,14 @@ export class BranchesService {
       prisma.branch.count({ where }),
     ]);
 
+    console.log(`✅ Found ${branches.length} branches for query`);
+
     return PaginationUtil.formatPaginationResult(branches, total, page, limit);
   }
 
   async getById(id: string, companyId: string | null) {
     const where: any = { id };
 
-    // ✅ Only filter by companyId if not SUPER_ADMIN
     if (companyId !== null) {
       where.companyId = companyId;
     }
@@ -148,7 +149,6 @@ export class BranchesService {
             status: true,
           },
         },
-        // ✅ Include assigned agents
         assignedAgents: {
           include: {
             user: {
@@ -197,20 +197,16 @@ export class BranchesService {
   ) {
     const where: any = { id };
 
-    // ✅ Only filter by companyId if not SUPER_ADMIN
     if (companyId !== null) {
       where.companyId = companyId;
     }
 
-    const branch = await prisma.branch.findFirst({
-      where,
-    });
+    const branch = await prisma.branch.findFirst({ where });
 
     if (!branch) {
       throw new Error('Branch not found');
     }
 
-    // If deactivating branch, warn about assigned agents
     if (data.isActive === false && branch.isActive) {
       const assignedCount = await prisma.agentBranchAssignment.count({
         where: { branchId: id },
@@ -243,7 +239,6 @@ export class BranchesService {
   async delete(id: string, companyId: string | null, deletedBy: string) {
     const where: any = { id };
 
-    // ✅ Only filter by companyId if not SUPER_ADMIN
     if (companyId !== null) {
       where.companyId = companyId;
     }
@@ -265,7 +260,6 @@ export class BranchesService {
       throw new Error('Branch not found');
     }
 
-    // Check if branch has any data
     if (branch._count.customers > 0) {
       throw new Error(
         `Cannot delete branch with ${branch._count.customers} customers. Please transfer customers first.`
@@ -282,7 +276,6 @@ export class BranchesService {
       console.warn(
         `⚠️ Deleting branch with ${branch._count.assignedAgents} assigned agents`
       );
-      // Agent assignments will be automatically deleted via CASCADE
     }
 
     await prisma.branch.delete({ where: { id } });
@@ -298,7 +291,6 @@ export class BranchesService {
     return { message: 'Branch deleted successfully' };
   }
 
-  // ✅ NEW: Get branches for a specific agent
   async getAgentBranches(userId: string) {
     const assignments = await prisma.agentBranchAssignment.findMany({
       where: { userId },
@@ -326,7 +318,6 @@ export class BranchesService {
       .map(a => a.branch);
   }
 
-  // ✅ NEW: Get agents for a specific branch
   async getBranchAgents(branchId: string) {
     const assignments = await prisma.agentBranchAssignment.findMany({
       where: { branchId },

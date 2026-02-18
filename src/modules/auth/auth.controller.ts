@@ -4,6 +4,7 @@ import { AuthService } from "./auth.service";
 import { ResponseUtil } from "../../utils/response.util";
 import { IAuthRequest } from "../../types/interfaces";
 import { EmailService } from "../../services/email.service";
+import { UserRole } from "../../types/enums";
 
 export class AuthController {
   private authService: AuthService;
@@ -254,6 +255,91 @@ export class AuthController {
       } else {
         ResponseUtil.error(res, "Email service is not configured properly");
       }
+    } catch (error: any) {
+      next(error);
+    }
+  };
+
+  // ✅ NEW: Manually suspend a user
+  suspendUser = async (
+    req: IAuthRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> => {
+    try {
+      const requestingUserRole = req.user!.role as UserRole;
+
+      // Only SUPER_ADMIN and COMPANY_ADMIN can suspend users
+      if (
+        requestingUserRole !== UserRole.SUPER_ADMIN &&
+        requestingUserRole !== UserRole.COMPANY_ADMIN
+      ) {
+        ResponseUtil.forbidden(res, 'Access denied');
+        return;
+      }
+
+      const { userId, reason } = req.body;
+      if (!userId) {
+        ResponseUtil.error(res, 'userId is required');
+        return;
+      }
+
+      const result = await this.authService.suspendUser(
+        userId,
+        req.user!.id,
+        requestingUserRole,
+        reason
+      );
+      ResponseUtil.success(res, result, result.message);
+    } catch (error: any) {
+      next(error);
+    }
+  };
+
+  // ✅ NEW: Manually reactivate a user
+  reactivateUser = async (
+    req: IAuthRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> => {
+    try {
+      const requestingUserRole = req.user!.role as UserRole;
+
+      if (
+        requestingUserRole !== UserRole.SUPER_ADMIN &&
+        requestingUserRole !== UserRole.COMPANY_ADMIN
+      ) {
+        ResponseUtil.forbidden(res, 'Access denied');
+        return;
+      }
+
+      const { userId } = req.body;
+      if (!userId) {
+        ResponseUtil.error(res, 'userId is required');
+        return;
+      }
+
+      const result = await this.authService.reactivateUser(
+        userId,
+        req.user!.id,
+        requestingUserRole
+      );
+      ResponseUtil.success(res, result, result.message);
+    } catch (error: any) {
+      next(error);
+    }
+  };
+
+  // ✅ NEW: Get a user's status
+  getUserStatus = async (
+    req: IAuthRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> => {
+    try {
+      const { userId } = req.params;
+      const result = await this.authService.getUserStatus(userId);
+      ResponseUtil.success(res, result, 'User status retrieved');
     } catch (error: any) {
       next(error);
     }
