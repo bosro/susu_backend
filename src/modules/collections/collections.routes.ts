@@ -18,10 +18,12 @@ router.use(
   TenantMiddleware.validateCompanyAccess
 );
 
+// ✅ FIXED: Removed TenantMiddleware.validateBranchAccess
+//    Agents don't have branchId in JWT token - it's in AgentBranchAssignment table
+//    Controller handles validation via validateAgentBranchAccess()
 router.post(
   '/',
   AuthMiddleware.authorize(UserRole.SUPER_ADMIN, UserRole.COMPANY_ADMIN, UserRole.AGENT),
-  TenantMiddleware.validateBranchAccess,
   ValidationMiddleware.validate(collectionsValidation.create),
   collectionsController.create
 );
@@ -38,13 +40,11 @@ router.get(
   collectionsController.getStats
 );
 
-// ✅ Get unread collection count
 router.get(
   '/unread-count',
   collectionsController.getUnreadCount
 );
 
-// ✅ Mark multiple collections as read
 router.post(
   '/mark-read',
   collectionsController.markMultipleAsRead
@@ -56,7 +56,6 @@ router.get(
   collectionsController.getById
 );
 
-// ✅ Mark single collection as read
 router.post(
   '/:id/mark-read',
   ValidationMiddleware.validateParams(collectionsValidation.params),

@@ -13,11 +13,11 @@ async function main() {
     where: { email: "misterbosro@gmail.com" },
     update: {},
     create: {
-      email: "misterbosro@gmail.com",
+      email: "benardbosro@lazylogiclimited.com",
       password: hashedPassword,
       firstName: "Mister",
       lastName: "Bosro",
-      phone: "+233209999999",
+      phone: "+233593706706",
       role: UserRole.SUPER_ADMIN, // Change if needed
       isActive: true,
     },
