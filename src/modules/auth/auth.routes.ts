@@ -4,62 +4,62 @@ import { AuthController } from './auth.controller';
 import { ValidationMiddleware } from '../../middleware/validation.middleware';
 import { AuthMiddleware } from '../../middleware/auth.middleware';
 import { authValidation } from './auth.validation';
-import { 
-  authRateLimiter, 
-  tokenRefreshLimiter, 
-  passwordResetLimiter 
+import {
+  authRateLimiter,
+  tokenRefreshLimiter,
+  passwordResetLimiter
 } from '../../middleware/rate-limit.middleware';
 import { UserRole } from '../../types/enums';
 
 const router = Router();
 const authController = new AuthController();
 
-// ✅ Public routes with appropriate rate limiting ONLY on auth-specific endpoints
+// ─── PUBLIC ROUTES ───────────────────────────────────────────────────────────
+
 router.post(
   '/register',
-  authRateLimiter, // 50 attempts per 15 minutes
+  authRateLimiter,
   ValidationMiddleware.validate(authValidation.register),
   authController.register
 );
 
 router.post(
   '/login',
-  authRateLimiter, // 50 attempts per 15 minutes
+  authRateLimiter,
   ValidationMiddleware.validate(authValidation.login),
   authController.login
 );
 
-// ✅ Token refresh with lenient rate limit
 router.post(
   '/refresh-token',
-  tokenRefreshLimiter, // 500 attempts per 15 minutes - very lenient
+  tokenRefreshLimiter,
   ValidationMiddleware.validate(authValidation.refreshToken),
   authController.refreshToken
 );
 
-// ✅ Password reset routes with specific limiter
 router.post(
   '/forgot-password',
-  passwordResetLimiter, // 20 attempts per hour
+  passwordResetLimiter,
   ValidationMiddleware.validate(authValidation.forgotPassword),
   authController.forgotPassword
 );
 
 router.post(
   '/reset-password',
-  passwordResetLimiter, // 20 attempts per hour
+  passwordResetLimiter,
   ValidationMiddleware.validate(authValidation.resetPassword),
   authController.resetPassword
 );
 
 router.post(
   '/verify-reset-token',
-  passwordResetLimiter, // 20 attempts per hour
+  passwordResetLimiter,
   ValidationMiddleware.validate(authValidation.verifyResetToken),
   authController.verifyResetToken
 );
 
-// ✅ Protected routes - NO rate limiting (auth middleware provides protection)
+// ─── PROTECTED ROUTES ────────────────────────────────────────────────────────
+
 router.post(
   '/logout',
   AuthMiddleware.authenticate,
@@ -74,13 +74,6 @@ router.post(
 );
 
 router.get(
-  '/verify-email-service',
-  AuthMiddleware.authenticate,
-  AuthMiddleware.authorize(UserRole.SUPER_ADMIN),
-  authController.verifyEmailService
-);
-
-router.get(
   '/profile',
   AuthMiddleware.authenticate,
   authController.getProfile
@@ -92,14 +85,21 @@ router.patch(
   authController.updateProfile
 );
 
-// ✅ Theme preferences endpoint - NO rate limiting
 router.put(
   '/theme',
   AuthMiddleware.authenticate,
   authController.updateTheme
 );
 
-// ✅ Admin routes - NO rate limiting (auth middleware provides protection)
+// ─── SUPER ADMIN ONLY ROUTES ─────────────────────────────────────────────────
+
+router.get(
+  '/verify-email-service',
+  AuthMiddleware.authenticate,
+  AuthMiddleware.authorize(UserRole.SUPER_ADMIN),
+  authController.verifyEmailService
+);
+
 router.post(
   '/cleanup-tokens',
   AuthMiddleware.authenticate,
@@ -112,6 +112,32 @@ router.post(
   AuthMiddleware.authenticate,
   AuthMiddleware.authorize(UserRole.SUPER_ADMIN),
   authController.adminResetUserPassword
+);
+
+// ─── USER MANAGEMENT ROUTES (SUPER_ADMIN + COMPANY_ADMIN) ───────────────────
+
+// Manually suspend a user account — invalidates all their tokens immediately
+router.post(
+  '/users/suspend',
+  AuthMiddleware.authenticate,
+  AuthMiddleware.authorize(UserRole.SUPER_ADMIN, UserRole.COMPANY_ADMIN),
+  authController.suspendUser
+);
+
+// Manually reactivate a suspended user account
+router.post(
+  '/users/reactivate',
+  AuthMiddleware.authenticate,
+  AuthMiddleware.authorize(UserRole.SUPER_ADMIN, UserRole.COMPANY_ADMIN),
+  authController.reactivateUser
+);
+
+// Get a specific user's active/inactive status
+router.get(
+  '/users/:userId/status',
+  AuthMiddleware.authenticate,
+  AuthMiddleware.authorize(UserRole.SUPER_ADMIN, UserRole.COMPANY_ADMIN),
+  authController.getUserStatus
 );
 
 export default router;

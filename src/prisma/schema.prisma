@@ -47,6 +47,22 @@ enum TransactionType {
   FEE
 }
 
+
+enum SubscriptionPlan {
+  TRIAL
+  MONTHLY
+  QUARTERLY
+  YEARLY
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  EXPIRED
+  CANCELLED
+  SUSPENDED
+  PENDING
+}
+
 // ==================== MODELS ====================
 
 model Company {
@@ -70,6 +86,7 @@ model Company {
   dailySummaries DailySummary[]
   notifications  Notification[]
   auditLogs      AuditLog[]
+  subscriptions CompanySubscription[]
   
   @@index([status])
   @@index([email])
@@ -352,4 +369,30 @@ model AuditLog {
   @@index([action])
   @@index([entityType])
   @@index([createdAt])
+}
+
+
+
+
+// Add this model
+model CompanySubscription {
+  id          String             @id @default(uuid())
+  companyId   String
+  plan        SubscriptionPlan   @default(TRIAL)
+  status      SubscriptionStatus @default(PENDING)
+  startDate   DateTime?
+  endDate     DateTime?
+  amount      Decimal?           @db.Decimal(10, 2)
+  notes       String?
+  createdBy   String?
+  updatedBy   String?
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@index([status])
+  @@index([endDate])
+  @@index([plan])
 }

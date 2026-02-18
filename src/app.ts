@@ -21,6 +21,7 @@ import dailySummariesRoutes from './modules/daily-summaries/daily-summaries.rout
 import reportsRoutes from './modules/reports/reports.routes';
 import notificationsRoutes from './modules/notifications/notifications.routes';
 import healthRoutes from './modules/health/health.routes';
+import subscriptionsRoutes from './modules/subscriptions/subscriptions.routes';
 
 
 class App {
@@ -88,6 +89,7 @@ class App {
     this.app.use(`/api/${apiVersion}/daily-summaries`, dailySummariesRoutes);
     this.app.use(`/api/${apiVersion}/reports`, reportsRoutes);
     this.app.use(`/api/${apiVersion}/notifications`, notificationsRoutes);
+    this.app.use(`/api/${apiVersion}/subscriptions`, subscriptionsRoutes);
     this.app.use('/health', healthRoutes);
 
     // 404 handler
