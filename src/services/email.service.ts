@@ -58,58 +58,260 @@ export class EmailService {
   ): Promise<void> {
     const subject = "Reset Your Password";
     const html = `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <meta charset="utf-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <title>Reset Your Password</title>
-          <style>
-            body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; background-color: #f4f4f4; margin: 0; padding: 0; }
-            .container { max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-            .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #ffffff; padding: 40px 20px; text-align: center; }
-            .header h1 { margin: 0; font-size: 28px; font-weight: 600; }
-            .content { padding: 40px 30px; }
-            .content p { margin: 0 0 20px; font-size: 16px; color: #555; }
-            .greeting { font-size: 18px; font-weight: 500; color: #333; margin-bottom: 20px; }
-            .button { display: inline-block; padding: 14px 32px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #ffffff; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 16px; margin: 20px 0; transition: transform 0.2s; }
-            .button:hover { transform: translateY(-2px); }
-            .info-box { background-color: #f8f9fa; border-left: 4px solid #667eea; padding: 15px; margin: 20px 0; border-radius: 4px; }
-            .info-box p { margin: 0; font-size: 14px; color: #666; }
-            .footer { background-color: #f8f9fa; padding: 30px; text-align: center; font-size: 14px; color: #777; }
-            .footer p { margin: 5px 0; }
-            .link { color: #667eea; text-decoration: none; word-break: break-all; }
-            .warning { color: #e74c3c; font-weight: 500; }
-          </style>
-        </head>
-        <body>
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Reset Your Password</title>
+        <style>
+          * { margin: 0; padding: 0; box-sizing: border-box; }
+          body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background-color: #f3f4f6;
+            color: #111827;
+          }
+          .wrapper {
+            padding: 40px 16px;
+          }
+          .container {
+            max-width: 560px;
+            margin: 0 auto;
+            background-color: #ffffff;
+            border-radius: 16px;
+            overflow: hidden;
+            border: 1px solid #e5e7eb;
+            box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+          }
+
+          /* ── Header ── */
+          .header {
+            background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+            padding: 40px 32px;
+            text-align: center;
+          }
+          .header-icon {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 64px;
+            height: 64px;
+            background: rgba(255,255,255,0.15);
+            border-radius: 16px;
+            margin-bottom: 16px;
+          }
+          .header h1 {
+            color: #ffffff;
+            font-size: 22px;
+            font-weight: 700;
+            letter-spacing: -0.3px;
+          }
+          .header p {
+            color: rgba(255,255,255,0.75);
+            font-size: 14px;
+            margin-top: 6px;
+          }
+
+          /* ── Body ── */
+          .body {
+            padding: 36px 32px;
+          }
+          .greeting {
+            font-size: 16px;
+            font-weight: 600;
+            color: #111827;
+            margin-bottom: 12px;
+          }
+          .body p {
+            font-size: 15px;
+            color: #6b7280;
+            line-height: 1.65;
+            margin-bottom: 16px;
+          }
+
+          /* ── Button ── */
+          .btn-wrapper {
+            text-align: center;
+            margin: 28px 0;
+          }
+          .btn {
+            display: inline-block;
+            padding: 14px 36px;
+            background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+            color: #ffffff !important;
+            text-decoration: none;
+            border-radius: 10px;
+            font-weight: 600;
+            font-size: 15px;
+            letter-spacing: 0.2px;
+            box-shadow: 0 4px 12px rgba(37,99,235,0.35);
+          }
+
+          /* ── Info box ── */
+          .info-box {
+            display: flex;
+            gap: 12px;
+            align-items: flex-start;
+            background-color: #eff6ff;
+            border: 1px solid #bfdbfe;
+            border-left: 4px solid #2563eb;
+            border-radius: 10px;
+            padding: 16px;
+            margin: 24px 0;
+          }
+          .info-box-icon {
+            flex-shrink: 0;
+            margin-top: 1px;
+          }
+          .info-box-text strong {
+            display: block;
+            font-size: 14px;
+            font-weight: 600;
+            color: #1e40af;
+            margin-bottom: 4px;
+          }
+          .info-box-text span {
+            font-size: 13px;
+            color: #3b82f6;
+            line-height: 1.5;
+          }
+
+          /* ── Warning box ── */
+          .warning-box {
+            display: flex;
+            gap: 12px;
+            align-items: flex-start;
+            background-color: #fef2f2;
+            border: 1px solid #fecaca;
+            border-left: 4px solid #ef4444;
+            border-radius: 10px;
+            padding: 16px;
+            margin: 20px 0;
+          }
+          .warning-box-text {
+            font-size: 13px;
+            color: #b91c1c;
+            line-height: 1.5;
+          }
+
+          /* ── Fallback link ── */
+          .fallback {
+            font-size: 13px;
+            color: #9ca3af;
+            margin-top: 8px;
+          }
+          .fallback a {
+            color: #2563eb;
+            text-decoration: none;
+            word-break: break-all;
+            font-size: 12px;
+          }
+
+          /* ── Divider ── */
+          .divider {
+            border: none;
+            border-top: 1px solid #f3f4f6;
+            margin: 24px 0;
+          }
+
+          /* ── Footer ── */
+          .footer {
+            background-color: #f9fafb;
+            border-top: 1px solid #e5e7eb;
+            padding: 24px 32px;
+            text-align: center;
+          }
+          .footer p {
+            font-size: 12px;
+            color: #9ca3af;
+            line-height: 1.6;
+          }
+          .footer a {
+            color: #2563eb;
+            text-decoration: none;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="wrapper">
           <div class="container">
+
+            <!-- Header -->
             <div class="header">
-              <h1>🔐 Password Reset Request</h1>
-            </div>
-            <div class="content">
-              ${userName ? `<p class="greeting">Hello ${userName},</p>` : '<p class="greeting">Hello,</p>'}
-              <p>We received a request to reset the password for your account. If you didn't make this request, you can safely ignore this email.</p>
-              <p>To reset your password, click the button below:</p>
-              <div style="text-align: center;">
-                <a href="${resetUrl}" class="button">Reset Password</a>
+              <div class="header-icon">
+                <!-- Lock SVG -->
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M12 2C9.23858 2 7 4.23858 7 7V9H6C4.89543 9 4 9.89543 4 11V20C4 21.1046 4.89543 22 6 22H18C19.1046 22 20 21.1046 20 20V11C20 9.89543 19.1046 9 18 9H17V7C17 4.23858 14.7614 2 12 2ZM15 9H9V7C9 5.34315 10.3431 4 12 4C13.6569 4 15 5.34315 15 7V9ZM12 13C12.5523 13 13 13.4477 13 14V17C13 17.5523 12.5523 18 12 18C11.4477 18 11 17.5523 11 17V14C11 13.4477 11.4477 13 12 13Z" fill="white"/>
+                </svg>
               </div>
+              <h1>Password Reset Request</h1>
+              <p>Secure link to reset your account password</p>
+            </div>
+
+            <!-- Body -->
+            <div class="body">
+              <p class="greeting">Hello${userName ? ` ${userName}` : ""},</p>
+              <p>
+                We received a request to reset the password for your account.
+                If you didn't make this request, you can safely ignore this email — your password won't change.
+              </p>
+
+              <!-- CTA Button -->
+              <div class="btn-wrapper">
+                <a href="${resetUrl}" class="btn">Reset My Password</a>
+              </div>
+
+              <!-- Expiry info -->
               <div class="info-box">
-                <p><strong>⏰ This link will expire in 1 hour.</strong></p>
-                <p>For security reasons, this password reset link is only valid for 60 minutes.</p>
+                <div class="info-box-icon">
+                  <!-- Clock SVG -->
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2ZM12 4C16.4183 4 20 7.58172 20 12C20 16.4183 16.4183 20 12 20C7.58172 20 4 16.4183 4 12C4 7.58172 7.58172 4 12 4ZM11 6V12.4142L14.2929 15.7071L15.7071 14.2929L13 11.5858V6H11Z" fill="#2563eb"/>
+                  </svg>
+                </div>
+                <div class="info-box-text">
+                  <strong>This link expires in 1 hour</strong>
+                  <span>For your security, this password reset link is only valid for 60 minutes from when it was sent.</span>
+                </div>
               </div>
-              <p>If the button doesn't work, copy and paste this link into your browser:</p>
-              <p><a href="${resetUrl}" class="link">${resetUrl}</a></p>
-              <p class="warning">⚠️ If you didn't request a password reset, please secure your account immediately by changing your password.</p>
+
+              <!-- Fallback link -->
+              <p class="fallback">
+                Button not working? Copy and paste this link into your browser:<br/>
+                <a href="${resetUrl}">${resetUrl}</a>
+              </p>
+
+              <hr class="divider"/>
+
+              <!-- Warning -->
+              <div class="warning-box">
+                <div class="info-box-icon">
+                  <!-- Shield SVG -->
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M12 2L3 6V12C3 16.9706 7.02944 21 12 21C16.9706 21 21 16.9706 21 12V6L12 2ZM12 11C11.4477 11 11 10.5523 11 10V8C11 7.44772 11.4477 7 12 7C12.5523 7 13 7.44772 13 8V10C13 10.5523 12.5523 11 12 11ZM12 15C11.4477 15 11 14.5523 11 14C11 13.4477 11.4477 13 12 13C12.5523 13 13 13.4477 13 14C13 14.5523 12.5523 15 12 15Z" fill="#ef4444"/>
+                  </svg>
+                </div>
+                <p class="warning-box-text">
+                  <strong>Didn't request this?</strong> If you didn't request a password reset, please secure your account immediately by changing your password.
+                </p>
+              </div>
             </div>
+
+            <!-- Footer -->
             <div class="footer">
-              <p>This is an automated message, please do not reply to this email.</p>
-              <p>© ${new Date().getFullYear()} Susu Management System. All rights reserved.</p>
+              <p>This is an automated message — please do not reply to this email.</p>
+              <p style="margin-top: 6px;">
+                Need help? Contact us at
+                <a href="mailto:${config.email.support}">${config.email.support}</a>
+              </p>
+              <p style="margin-top: 10px;">© ${new Date().getFullYear()} MS System. All rights reserved.</p>
             </div>
+
           </div>
-        </body>
-      </html>
-    `;
+        </div>
+      </body>
+    </html>
+  `;
     await this.sendEmail({ to: email, subject, html });
   }
 

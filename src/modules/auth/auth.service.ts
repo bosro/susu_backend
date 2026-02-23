@@ -524,7 +524,7 @@ export class AuthService {
       data: { resetToken: resetTokenHash, resetTokenExpiry } as any,
     });
 
-    const resetUrl = `${process.env.FRONTEND_URL}/auth/reset-password?token=${resetToken}`;
+    const resetUrl = `${process.env.FRONTEND_URL}/reset-password?token=${resetToken}`;
     const userName = `${user.firstName} ${user.lastName}`;
 
     // 🔍 Debug logs
