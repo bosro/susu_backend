@@ -44,3 +44,4 @@ export const authValidation = {
     token: Joi.string().required(),
   }),
 };
+

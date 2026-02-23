@@ -1,26 +1,25 @@
 // src/modules/auth/auth.service.ts
-import { prisma } from '../../config/database';
-import { BcryptUtil } from '../../utils/bcrypt.util';
-import { JWTUtil } from '../../utils/jwt.util';
-import { AuditLogUtil } from '../../utils/audit-log.util';
-import { UserRole, CompanyStatus, AuditAction } from '../../types/enums';
-import { ITokenPayload } from '../../types/interfaces';
-import { EmailService } from '../../services/email.service';
-import crypto from 'crypto';
+import { prisma } from "../../config/database";
+import { BcryptUtil } from "../../utils/bcrypt.util";
+import { JWTUtil } from "../../utils/jwt.util";
+import { AuditLogUtil } from "../../utils/audit-log.util";
+import { UserRole, CompanyStatus, AuditAction } from "../../types/enums";
+import { ITokenPayload } from "../../types/interfaces";
+import { EmailService } from "../../services/email.service";
+import crypto from "crypto";
 
 export class AuthService {
-
   async cleanupExpiredTokens(): Promise<number> {
     try {
       const result = await prisma.refreshToken.deleteMany({
         where: {
-          expiresAt: { lt: new Date() }
-        }
+          expiresAt: { lt: new Date() },
+        },
       });
       console.log(`✅ Cleaned up ${result.count} expired refresh tokens`);
       return result.count;
     } catch (error) {
-      console.error('❌ Token cleanup failed:', error);
+      console.error("❌ Token cleanup failed:", error);
       return 0;
     }
   }
@@ -40,14 +39,14 @@ export class AuthService {
       where: { email: data.email },
     });
     if (existingUser) {
-      throw new Error('User with this email already exists');
+      throw new Error("User with this email already exists");
     }
 
     const existingCompany = await prisma.company.findUnique({
       where: { email: data.companyEmail },
     });
     if (existingCompany) {
-      throw new Error('Company with this email already exists');
+      throw new Error("Company with this email already exists");
     }
 
     const hashedPassword = await BcryptUtil.hash(data.password);
@@ -107,9 +106,9 @@ export class AuthService {
     EmailService.sendWelcomeEmail(
       result.user.email,
       `${result.user.firstName} ${result.user.lastName}`,
-      result.company.name
-    ).catch(error => {
-      console.error('⚠️ Failed to send welcome email:', error);
+      result.company.name,
+    ).catch((error) => {
+      console.error("⚠️ Failed to send welcome email:", error);
     });
 
     // ✅ Notify all super admins about the new company registration
@@ -117,9 +116,9 @@ export class AuthService {
       result.company.name,
       result.company.email,
       `${result.user.firstName} ${result.user.lastName}`,
-      new Date()
-    ).catch(error => {
-      console.error('⚠️ Failed to notify super admins of new company:', error);
+      new Date(),
+    ).catch((error) => {
+      console.error("⚠️ Failed to notify super admins of new company:", error);
     });
 
     const tokenPayload: ITokenPayload = {
@@ -141,7 +140,7 @@ export class AuthService {
       },
     });
 
-    console.log('✅ Registration successful for:', result.user.email);
+    console.log("✅ Registration successful for:", result.user.email);
 
     return {
       user: result.user,
@@ -154,7 +153,7 @@ export class AuthService {
     companyName: string,
     companyEmail: string,
     adminName: string,
-    registeredAt: Date
+    registeredAt: Date,
   ): Promise<void> {
     const superAdmins = await prisma.user.findMany({
       where: {
@@ -165,27 +164,34 @@ export class AuthService {
     });
 
     if (superAdmins.length === 0) {
-      console.log('⚠️ No active super admins found to notify');
+      console.log("⚠️ No active super admins found to notify");
       return;
     }
 
     await Promise.allSettled(
-      superAdmins.map(admin =>
+      superAdmins.map((admin) =>
         EmailService.sendSuperAdminNewCompanyAlert(
           admin.email,
           companyName,
           companyEmail,
           adminName,
-          registeredAt
-        )
-      )
+          registeredAt,
+        ),
+      ),
     );
 
-    console.log(`✅ Notified ${superAdmins.length} super admin(s) of new company registration`);
+    console.log(
+      `✅ Notified ${superAdmins.length} super admin(s) of new company registration`,
+    );
   }
 
-  async login(email: string, password: string, ipAddress?: string, userAgent?: string) {
-    console.log('🔍 Login attempt for email:', email);
+  async login(
+    email: string,
+    password: string,
+    ipAddress?: string,
+    userAgent?: string,
+  ) {
+    console.log("🔍 Login attempt for email:", email);
 
     const user = await prisma.user.findUnique({
       where: { email },
@@ -234,24 +240,29 @@ export class AuthService {
     });
 
     if (!user) {
-      console.log('❌ User not found');
-      throw new Error('Invalid credentials');
+      console.log("❌ User not found");
+      throw new Error("Invalid credentials");
     }
 
     if (!user.isActive) {
-      console.log('❌ Account is inactive');
-      throw new Error('Account is inactive. Please contact your administrator.');
+      console.log("❌ Account is inactive");
+      throw new Error(
+        "Account is inactive. Please contact your administrator.",
+      );
     }
 
-    if (user.role !== UserRole.SUPER_ADMIN && user.company?.status !== CompanyStatus.ACTIVE) {
-      console.log('❌ Company account is not active:', user.company?.status);
-      throw new Error('Company account is not active. Please contact support.');
+    if (
+      user.role !== UserRole.SUPER_ADMIN &&
+      user.company?.status !== CompanyStatus.ACTIVE
+    ) {
+      console.log("❌ Company account is not active:", user.company?.status);
+      throw new Error("Company account is not active. Please contact support.");
     }
 
     const isPasswordValid = await BcryptUtil.compare(password, user.password);
     if (!isPasswordValid) {
-      console.log('❌ Invalid password');
-      throw new Error('Invalid credentials');
+      console.log("❌ Invalid password");
+      throw new Error("Invalid credentials");
     }
 
     const tokenPayload: ITokenPayload = {
@@ -283,7 +294,7 @@ export class AuthService {
         companyId: user.companyId,
         userId: user.id,
         action: AuditAction.LOGIN,
-        entityType: 'USER',
+        entityType: "USER",
         entityId: user.id,
         ipAddress,
         userAgent,
@@ -291,7 +302,7 @@ export class AuthService {
     }
 
     const { password: _, ...userWithoutPassword } = user;
-    console.log('✅ Login successful for:', userWithoutPassword.email);
+    console.log("✅ Login successful for:", userWithoutPassword.email);
 
     return {
       user: userWithoutPassword,
@@ -304,7 +315,7 @@ export class AuthService {
     try {
       decoded = JWTUtil.verifyRefreshToken(refreshToken);
     } catch (error) {
-      throw new Error('Invalid refresh token');
+      throw new Error("Invalid refresh token");
     }
 
     const storedToken = await prisma.refreshToken.findUnique({
@@ -313,28 +324,28 @@ export class AuthService {
         user: {
           include: {
             company: {
-              select: { id: true, name: true, status: true }
-            }
-          }
-        }
+              select: { id: true, name: true, status: true },
+            },
+          },
+        },
       },
     });
 
-    if (!storedToken) throw new Error('Refresh token not found');
+    if (!storedToken) throw new Error("Refresh token not found");
     if (storedToken.expiresAt < new Date()) {
       await prisma.refreshToken.delete({ where: { id: storedToken.id } });
-      throw new Error('Refresh token expired');
+      throw new Error("Refresh token expired");
     }
     if (!storedToken.user.isActive) {
       await prisma.refreshToken.delete({ where: { id: storedToken.id } });
-      throw new Error('User account is inactive');
+      throw new Error("User account is inactive");
     }
     if (
       storedToken.user.role !== UserRole.SUPER_ADMIN &&
       storedToken.user.company?.status !== CompanyStatus.ACTIVE
     ) {
       await prisma.refreshToken.delete({ where: { id: storedToken.id } });
-      throw new Error('Company account is no longer active');
+      throw new Error("Company account is no longer active");
     }
 
     const tokenPayload: ITokenPayload = {
@@ -359,7 +370,7 @@ export class AuthService {
       }),
     ]);
 
-    console.log('✅ Token refreshed successfully for user:', decoded.email);
+    console.log("✅ Token refreshed successfully for user:", decoded.email);
     return { accessToken: newAccessToken, refreshToken: newRefreshToken };
   }
 
@@ -367,16 +378,23 @@ export class AuthService {
     await prisma.refreshToken.deleteMany({
       where: { userId, token: refreshToken },
     });
-    console.log('✅ User logged out:', userId);
-    return { message: 'Logged out successfully' };
+    console.log("✅ User logged out:", userId);
+    return { message: "Logged out successfully" };
   }
 
-  async changePassword(userId: string, currentPassword: string, newPassword: string) {
+  async changePassword(
+    userId: string,
+    currentPassword: string,
+    newPassword: string,
+  ) {
     const user = await prisma.user.findUnique({ where: { id: userId } });
-    if (!user) throw new Error('User not found');
+    if (!user) throw new Error("User not found");
 
-    const isPasswordValid = await BcryptUtil.compare(currentPassword, user.password);
-    if (!isPasswordValid) throw new Error('Current password is incorrect');
+    const isPasswordValid = await BcryptUtil.compare(
+      currentPassword,
+      user.password,
+    );
+    if (!isPasswordValid) throw new Error("Current password is incorrect");
 
     const hashedPassword = await BcryptUtil.hash(newPassword);
     await prisma.user.update({
@@ -385,8 +403,8 @@ export class AuthService {
     });
 
     await prisma.refreshToken.deleteMany({ where: { userId } });
-    console.log('✅ Password changed for user:', user.email);
-    return { message: 'Password changed successfully' };
+    console.log("✅ Password changed for user:", user.email);
+    return { message: "Password changed successfully" };
   }
 
   async getProfile(userId: string) {
@@ -431,13 +449,13 @@ export class AuthService {
       },
     });
 
-    if (!user) throw new Error('User not found');
+    if (!user) throw new Error("User not found");
     return user;
   }
 
   async updateProfile(
     userId: string,
-    data: { firstName?: string; lastName?: string; phone?: string }
+    data: { firstName?: string; lastName?: string; phone?: string },
   ) {
     const user = await prisma.user.update({
       where: { id: userId },
@@ -477,7 +495,7 @@ export class AuthService {
       },
     });
 
-    console.log('✅ Profile updated:', user.email);
+    console.log("✅ Profile updated:", user.email);
     return user;
   }
 
@@ -488,12 +506,17 @@ export class AuthService {
     });
 
     if (!user) {
-      console.log('⚠️ Password reset requested for non-existent email:', email);
-      return { message: 'If the email exists, a password reset link has been sent' };
+      console.log("⚠️ Password reset requested for non-existent email:", email);
+      return {
+        message: "If the email exists, a password reset link has been sent",
+      };
     }
 
-    const resetToken = crypto.randomBytes(32).toString('hex');
-    const resetTokenHash = crypto.createHash('sha256').update(resetToken).digest('hex');
+    const resetToken = crypto.randomBytes(32).toString("hex");
+    const resetTokenHash = crypto
+      .createHash("sha256")
+      .update(resetToken)
+      .digest("hex");
     const resetTokenExpiry = new Date(Date.now() + 60 * 60 * 1000);
 
     await prisma.user.update({
@@ -504,58 +527,96 @@ export class AuthService {
     const resetUrl = `${process.env.FRONTEND_URL}/auth/reset-password?token=${resetToken}`;
     const userName = `${user.firstName} ${user.lastName}`;
 
-    EmailService.sendPasswordResetEmail(user.email, resetUrl, userName).catch(error => {
-      console.error('⚠️ Failed to send password reset email:', error);
+    // 🔍 Debug logs
+    console.log("🔑 Reset token generated for:", user.email);
+    console.log("🌐 FRONTEND_URL:", process.env.FRONTEND_URL);
+    console.log("🔗 Reset URL:", resetUrl);
+    console.log("📧 Attempting to send email to:", user.email);
+    console.log("📬 SMTP Config check:", {
+      host: process.env.SMTP_HOST || process.env.EMAIL_HOST || "NOT SET",
+      port: process.env.EMAIL_PORT || "NOT SET",
+      user: process.env.SMTP_USER || process.env.EMAIL_USER || "NOT SET",
+      secure: process.env.EMAIL_SECURE || "NOT SET",
     });
 
-    console.log('🔑 Password reset token generated for:', user.email);
+    try {
+      await EmailService.sendPasswordResetEmail(user.email, resetUrl, userName);
+      console.log("✅ Password reset email successfully sent to:", user.email);
+    } catch (error: any) {
+      console.error("❌ Failed to send password reset email:", error.message);
+      console.error("❌ Full SMTP error:", error);
+      throw new Error(`Failed to send reset email: ${error.message}`);
+    }
 
     return {
-      message: 'If the email exists, a password reset link has been sent',
-      ...(process.env.NODE_ENV === 'development' && { resetToken, resetUrl }),
+      message: "If the email exists, a password reset link has been sent",
+      ...(process.env.NODE_ENV === "development" && { resetToken, resetUrl }),
     };
   }
 
   async verifyResetToken(data: { token: string }) {
-    const resetTokenHash = crypto.createHash('sha256').update(data.token).digest('hex');
+    const resetTokenHash = crypto
+      .createHash("sha256")
+      .update(data.token)
+      .digest("hex");
     const user = await prisma.user.findFirst({
-      where: { resetToken: resetTokenHash, resetTokenExpiry: { gt: new Date() } } as any,
+      where: {
+        resetToken: resetTokenHash,
+        resetTokenExpiry: { gt: new Date() },
+      } as any,
     });
 
-    if (!user) throw new Error('Invalid or expired reset token');
-    console.log('✅ Reset token verified for:', user.email);
+    if (!user) throw new Error("Invalid or expired reset token");
+    console.log("✅ Reset token verified for:", user.email);
     return { valid: true };
   }
 
-  async resetPassword(data: { token: string; newPassword: string; confirmPassword: string }) {
-    const resetTokenHash = crypto.createHash('sha256').update(data.token).digest('hex');
+  async resetPassword(data: {
+    token: string;
+    newPassword: string;
+    confirmPassword: string;
+  }) {
+    const resetTokenHash = crypto
+      .createHash("sha256")
+      .update(data.token)
+      .digest("hex");
     const user = await prisma.user.findFirst({
-      where: { resetToken: resetTokenHash, resetTokenExpiry: { gt: new Date() } } as any,
+      where: {
+        resetToken: resetTokenHash,
+        resetTokenExpiry: { gt: new Date() },
+      } as any,
     });
 
-    if (!user) throw new Error('Invalid or expired reset token');
+    if (!user) throw new Error("Invalid or expired reset token");
 
     const hashedPassword = await BcryptUtil.hash(data.newPassword);
     await prisma.user.update({
       where: { id: user.id },
-      data: { password: hashedPassword, resetToken: null, resetTokenExpiry: null } as any,
+      data: {
+        password: hashedPassword,
+        resetToken: null,
+        resetTokenExpiry: null,
+      } as any,
     });
 
     await prisma.refreshToken.deleteMany({ where: { userId: user.id } });
-    console.log('✅ Password reset successfully for:', user.email);
-    return { message: 'Password reset successfully' };
+    console.log("✅ Password reset successfully for:", user.email);
+    return { message: "Password reset successfully" };
   }
 
   async adminResetUserPassword(userId: string, newPassword: string) {
     const user = await prisma.user.findUnique({ where: { id: userId } });
-    if (!user) throw new Error('User not found');
+    if (!user) throw new Error("User not found");
 
     const hashedPassword = await BcryptUtil.hash(newPassword);
-    await prisma.user.update({ where: { id: userId }, data: { password: hashedPassword } });
+    await prisma.user.update({
+      where: { id: userId },
+      data: { password: hashedPassword },
+    });
     await prisma.refreshToken.deleteMany({ where: { userId } });
 
-    console.log('✅ Admin reset password for user:', user.email);
-    return { message: 'User password reset successfully' };
+    console.log("✅ Admin reset password for user:", user.email);
+    return { message: "User password reset successfully" };
   }
 
   // ✅ NEW: Manually suspend a user account (super admin or company admin)
@@ -563,7 +624,7 @@ export class AuthService {
     targetUserId: string,
     requestingUserId: string,
     requestingUserRole: UserRole,
-    reason?: string
+    reason?: string,
   ) {
     const targetUser = await prisma.user.findUnique({
       where: { id: targetUserId },
@@ -572,23 +633,29 @@ export class AuthService {
       },
     });
 
-    if (!targetUser) throw new Error('User not found');
+    if (!targetUser) throw new Error("User not found");
 
     // Prevent suspending super admins
     if (targetUser.role === UserRole.SUPER_ADMIN) {
-      throw new Error('Super admin accounts cannot be suspended');
+      throw new Error("Super admin accounts cannot be suspended");
     }
 
     // Company admins can only suspend users within their own company
     if (
       requestingUserRole === UserRole.COMPANY_ADMIN &&
-      targetUser.companyId !== (await prisma.user.findUnique({ where: { id: requestingUserId }, select: { companyId: true } }))?.companyId
+      targetUser.companyId !==
+        (
+          await prisma.user.findUnique({
+            where: { id: requestingUserId },
+            select: { companyId: true },
+          })
+        )?.companyId
     ) {
-      throw new Error('You can only suspend users within your own company');
+      throw new Error("You can only suspend users within your own company");
     }
 
     if (!targetUser.isActive) {
-      throw new Error('User is already suspended');
+      throw new Error("User is already suspended");
     }
 
     // Deactivate the user and invalidate all their tokens
@@ -606,9 +673,9 @@ export class AuthService {
     EmailService.sendUserSuspendedEmail(
       targetUser.email,
       `${targetUser.firstName} ${targetUser.lastName}`,
-      reason
-    ).catch(error => {
-      console.error('⚠️ Failed to send suspension email:', error);
+      reason,
+    ).catch((error) => {
+      console.error("⚠️ Failed to send suspension email:", error);
     });
 
     console.log(`✅ User ${targetUser.email} suspended by ${requestingUserId}`);
@@ -623,7 +690,7 @@ export class AuthService {
   async reactivateUser(
     targetUserId: string,
     requestingUserId: string,
-    requestingUserRole: UserRole
+    requestingUserRole: UserRole,
   ) {
     const targetUser = await prisma.user.findUnique({
       where: { id: targetUserId },
@@ -632,7 +699,7 @@ export class AuthService {
       },
     });
 
-    if (!targetUser) throw new Error('User not found');
+    if (!targetUser) throw new Error("User not found");
 
     // Company admins can only reactivate users within their own company
     if (requestingUserRole === UserRole.COMPANY_ADMIN) {
@@ -641,7 +708,9 @@ export class AuthService {
         select: { companyId: true },
       });
       if (targetUser.companyId !== requestingUser?.companyId) {
-        throw new Error('You can only reactivate users within your own company');
+        throw new Error(
+          "You can only reactivate users within your own company",
+        );
       }
     }
 
@@ -651,12 +720,12 @@ export class AuthService {
       targetUser.company?.status !== CompanyStatus.ACTIVE
     ) {
       throw new Error(
-        `Cannot reactivate user — the company account (${targetUser.company?.name}) is not active. Activate the company first.`
+        `Cannot reactivate user — the company account (${targetUser.company?.name}) is not active. Activate the company first.`,
       );
     }
 
     if (targetUser.isActive) {
-      throw new Error('User is already active');
+      throw new Error("User is already active");
     }
 
     await prisma.user.update({
@@ -667,12 +736,14 @@ export class AuthService {
     // Send reactivation email (fire and forget)
     EmailService.sendUserReactivatedEmail(
       targetUser.email,
-      `${targetUser.firstName} ${targetUser.lastName}`
-    ).catch(error => {
-      console.error('⚠️ Failed to send reactivation email:', error);
+      `${targetUser.firstName} ${targetUser.lastName}`,
+    ).catch((error) => {
+      console.error("⚠️ Failed to send reactivation email:", error);
     });
 
-    console.log(`✅ User ${targetUser.email} reactivated by ${requestingUserId}`);
+    console.log(
+      `✅ User ${targetUser.email} reactivated by ${requestingUserId}`,
+    );
 
     return {
       message: `User ${targetUser.firstName} ${targetUser.lastName} has been reactivated`,
@@ -695,18 +766,18 @@ export class AuthService {
       },
     });
 
-    if (!user) throw new Error('User not found');
+    if (!user) throw new Error("User not found");
     return user;
   }
 
   async updateThemePreferences(
     userId: string,
     themeData: {
-      themeMode?: 'light' | 'dark';
+      themeMode?: "light" | "dark";
       themeColor?: string;
       customPrimary?: string;
       customSecondary?: string;
-    }
+    },
   ) {
     const user = await prisma.user.update({
       where: { id: userId },
@@ -755,7 +826,7 @@ export class AuthService {
       },
     });
 
-    console.log('✅ Theme preferences updated for:', user.email);
+    console.log("✅ Theme preferences updated for:", user.email);
     return user;
   }
 
@@ -766,7 +837,7 @@ export class AuthService {
       themeColor?: string;
       customPrimary?: string | null;
       customSecondary?: string | null;
-    }
+    },
   ): Promise<any> {
     try {
       const updatedUser = await prisma.user.update({

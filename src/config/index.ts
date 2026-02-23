@@ -22,8 +22,6 @@ export const config = {
   jwt: {
     secret: process.env.JWT_SECRET!,
     refreshSecret: process.env.JWT_REFRESH_SECRET!,
-
-    // 👇 THIS IS THE FIX
     accessExpiry: (process.env.JWT_ACCESS_EXPIRY || '15m') as SignOptions['expiresIn'],
     refreshExpiry: (process.env.JWT_REFRESH_EXPIRY || '7d') as SignOptions['expiresIn'],
   },
@@ -48,18 +46,17 @@ export const config = {
     origin: process.env.FRONTEND_URL || 'http://localhost:4200',
   },
 
-   // ✅ Email configuration
+  // ✅ FIXED: now correctly reads SMTP_* variable names from .env
   email: {
-    host: process.env.EMAIL_HOST || 'smtp.gmail.com',
+    host: process.env.SMTP_HOST || 'smtp.gmail.com',
     port: parseInt(process.env.EMAIL_PORT || '587'),
-    secure: process.env.EMAIL_SECURE === 'false', // true for 465, false for 587
-    user: process.env.EMAIL_USER || '',
-    password: process.env.EMAIL_PASSWORD || '',
+    secure: process.env.EMAIL_SECURE === 'true', // ✅ FIXED: was === 'false' which always returned true
+    user: process.env.SMTP_USER || '',
+    password: process.env.SMTP_PASSWORD || '',
     from: process.env.EMAIL_FROM || 'noreply@susuapp.com',
-    fromName: process.env.EMAIL_FROM_NAME || 'Susu Management System',
+    fromName: process.env.EMAIL_FROM_NAME || 'MS System',
     support: process.env.EMAIL_SUPPORT || 'support@susuapp.com',
   },
-
 
   frontendUrl: process.env.FRONTEND_URL || 'http://localhost:4200',
 };
