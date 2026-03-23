@@ -237,6 +237,9 @@ model SusuAccount {
   isActive      Boolean       @default(true)
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
+
+  completedAt    DateTime?        // when admin marked it complete
+  completionNote String?
   
   customer     Customer      @relation(fields: [customerId], references: [id], onDelete: Cascade)
   susuPlan     SusuPlan      @relation(fields: [susuPlanId], references: [id])

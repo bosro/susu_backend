@@ -31,7 +31,7 @@ export const collectionsValidation = {
 
   query: Joi.object({
     page: Joi.number().min(1).optional(),
-    limit: Joi.number().min(1).max(100).optional(),
+    limit: Joi.number().min(1).max(500).optional(),
     search: Joi.string().optional(),
     customerId: Joi.string().uuid().optional(),
     branchId: Joi.string().uuid().optional(),
@@ -45,6 +45,7 @@ export const collectionsValidation = {
     sortOrder: Joi.string().valid('asc', 'desc').optional(),
   }),
 
+  
   params: Joi.object({
     id: Joi.string().uuid().required(),
   }),

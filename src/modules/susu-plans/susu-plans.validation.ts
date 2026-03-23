@@ -44,3 +44,5 @@ export const susuPlansValidation = {
     id: Joi.string().uuid().required(),
   }),
 };
+
+
