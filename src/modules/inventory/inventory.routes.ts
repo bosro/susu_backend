@@ -1,4 +1,6 @@
 // src/modules/inventory/inventory.routes.ts
+// ✅ FIXED: Static routes (sales, overview) declared BEFORE /:id param routes
+//    so Express doesn't match "sales" or "stats" as a UUID param
 
 import { Router } from 'express';
 import { InventoryController } from './inventory.controller';
@@ -14,10 +16,32 @@ const inventoryController = new InventoryController();
 // All routes require authentication
 router.use(AuthMiddleware.authenticate, TenantMiddleware.validateCompanyAccess);
 
-// ── Overview ──────────────────────────────────────────────────────
+// ── Overview ─────────────────────────────────────────────────────
+// MUST be before /:id routes
 router.get('/overview', inventoryController.getOverview);
 
-// ── Items ─────────────────────────────────────────────────────────
+// ── Sales (static routes FIRST, before any /:id) ─────────────────
+// MUST be before /items/:id/... routes so "sales" is not matched as an item :id
+router.get(
+  '/sales/stats',
+  ValidationMiddleware.validateQuery(inventoryValidation.saleQuery),
+  inventoryController.getSalesStats,
+);
+
+router.get(
+  '/sales',
+  ValidationMiddleware.validateQuery(inventoryValidation.saleQuery),
+  inventoryController.getAllSales,
+);
+
+router.post(
+  '/sales',
+  AuthMiddleware.authorize(UserRole.SUPER_ADMIN, UserRole.COMPANY_ADMIN),
+  ValidationMiddleware.validate(inventoryValidation.createSale),
+  inventoryController.recordSale,
+);
+
+// ── Items (list + create, no :id) ─────────────────────────────────
 router.get(
   '/items',
   ValidationMiddleware.validateQuery(inventoryValidation.itemQuery),
@@ -31,6 +55,7 @@ router.post(
   inventoryController.createItem,
 );
 
+// ── Item sub-routes with :id (AFTER all static routes) ────────────
 router.get(
   '/items/:id',
   ValidationMiddleware.validateParams(inventoryValidation.params),
@@ -52,7 +77,6 @@ router.delete(
   inventoryController.deleteItem,
 );
 
-// ── Restock ───────────────────────────────────────────────────────
 router.post(
   '/items/:id/restock',
   AuthMiddleware.authorize(UserRole.SUPER_ADMIN, UserRole.COMPANY_ADMIN),
@@ -66,26 +90,6 @@ router.get(
   ValidationMiddleware.validateParams(inventoryValidation.params),
   ValidationMiddleware.validateQuery(inventoryValidation.restockQuery),
   inventoryController.getRestockHistory,
-);
-
-// ── Sales ─────────────────────────────────────────────────────────
-router.get(
-  '/sales',
-  ValidationMiddleware.validateQuery(inventoryValidation.saleQuery),
-  inventoryController.getAllSales,
-);
-
-router.post(
-  '/sales',
-  AuthMiddleware.authorize(UserRole.SUPER_ADMIN, UserRole.COMPANY_ADMIN),
-  ValidationMiddleware.validate(inventoryValidation.createSale),
-  inventoryController.recordSale,
-);
-
-router.get(
-  '/sales/stats',
-  ValidationMiddleware.validateQuery(inventoryValidation.saleQuery),
-  inventoryController.getSalesStats,
 );
 
 export default router;
