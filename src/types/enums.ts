@@ -49,3 +49,15 @@ export enum AuditAction {
   LOGOUT = 'LOGOUT',
   EXPORT = 'EXPORT',
 }
+
+export enum InventoryItemStatus {
+  ACTIVE = 'ACTIVE',
+  DISCONTINUED = 'DISCONTINUED',
+  OUT_OF_STOCK = 'OUT_OF_STOCK',
+}
+
+export enum InventorySaleStatus {
+  COMPLETED = 'COMPLETED',
+  REFUNDED = 'REFUNDED',
+  CANCELLED = 'CANCELLED',
+}

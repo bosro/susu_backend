@@ -756,6 +756,7 @@ export class CollectionsService {
       endDate?: string;
       branchId?: string;
       agentId?: string;
+      customerId?: string;  
     },
   ) {
     const where: any = {};
@@ -766,6 +767,7 @@ export class CollectionsService {
 
     if (filters.branchId) where.branchId = filters.branchId;
     if (filters.agentId) where.agentId = filters.agentId;
+    if (filters.customerId) where.customerId = filters.customerId;
 
     if (filters.startDate || filters.endDate) {
       where.collectionDate = {};
@@ -838,3 +840,7 @@ export class CollectionsService {
     };
   }
 }
+
+
+
+

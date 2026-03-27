@@ -58,3 +58,5 @@ export const customersValidation = {
     id: Joi.string().uuid().required(),
   }),
 };
+
+

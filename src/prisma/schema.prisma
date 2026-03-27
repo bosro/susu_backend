@@ -63,6 +63,18 @@ enum SubscriptionStatus {
   PENDING
 }
 
+enum InventoryItemStatus {
+  ACTIVE
+  DISCONTINUED
+  OUT_OF_STOCK
+}
+
+enum InventorySaleStatus {
+  COMPLETED
+  REFUNDED
+  CANCELLED
+}
+
 // ==================== MODELS ====================
 
 model Company {
@@ -87,6 +99,10 @@ model Company {
   notifications  Notification[]
   auditLogs      AuditLog[]
   subscriptions CompanySubscription[]
+
+  inventoryItems    InventoryItem[]
+  inventorySales    InventorySale[]
+  inventoryRestocks InventoryRestock[]
   
   @@index([status])
   @@index([email])
@@ -122,6 +138,8 @@ model User {
   receivedNotifications  Notification[]          @relation("ReceivedNotifications")
   auditLogs              AuditLog[]
   refreshTokens          RefreshToken[]
+
+  inventorySales    InventorySale[]   @relation("InventorySaleAgent")
   
   @@index([companyId])
   @@index([email])
@@ -237,6 +255,9 @@ model SusuAccount {
   isActive      Boolean       @default(true)
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
+
+  completedAt    DateTime?        // when admin marked it complete
+  completionNote String?
   
   customer     Customer      @relation(fields: [customerId], references: [id], onDelete: Cascade)
   susuPlan     SusuPlan      @relation(fields: [susuPlanId], references: [id])
@@ -395,4 +416,87 @@ model CompanySubscription {
   @@index([status])
   @@index([endDate])
   @@index([plan])
+}
+
+
+// ==================== ADD THESE MODELS TO schema.prisma ====================
+
+model InventoryItem {
+  id               String              @id @default(uuid())
+  companyId        String
+  name             String
+  description      String?
+  category         String?
+  sku              String?             // Stock Keeping Unit
+  unit             String?             @default("piece") // piece, kg, box, set, etc.
+  imageUrl         String?
+  costPrice        Decimal             @db.Decimal(10, 2)   // what it cost to acquire
+  sellingPrice     Decimal             @db.Decimal(10, 2)   // default selling price
+  quantityInStock  Int                 @default(0)
+  lowStockThreshold Int?               @default(5)          // alert when below this
+  status           InventoryItemStatus @default(ACTIVE)
+  createdBy        String?
+  updatedBy        String?
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+
+  company   Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  sales     InventorySale[]
+  restocks  InventoryRestock[]
+
+  @@index([companyId])
+  @@index([status])
+  @@index([category])
+  @@index([sku])
+}
+
+model InventorySale {
+  id              String              @id @default(uuid())
+  companyId       String
+  inventoryItemId String
+  agentId         String              // who sold it
+  quantitySold    Int
+  costPriceAtSale Decimal             @db.Decimal(10, 2)   // snapshot of cost price at time of sale
+  salePricePerUnit Decimal            @db.Decimal(10, 2)   // actual price sold at
+  totalCost       Decimal             @db.Decimal(10, 2)   // costPriceAtSale * quantitySold
+  totalRevenue    Decimal             @db.Decimal(10, 2)   // salePricePerUnit * quantitySold
+  profit          Decimal             @db.Decimal(10, 2)   // totalRevenue - totalCost
+  buyerName       String?
+  buyerContact    String?
+  notes           String?
+  status          InventorySaleStatus @default(COMPLETED)
+  saleDate        DateTime            @default(now())
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  company       Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  inventoryItem InventoryItem @relation(fields: [inventoryItemId], references: [id], onDelete: Cascade)
+  agent         User          @relation("InventorySaleAgent", fields: [agentId], references: [id])
+
+  @@index([companyId])
+  @@index([inventoryItemId])
+  @@index([agentId])
+  @@index([saleDate])
+  @@index([status])
+}
+
+model InventoryRestock {
+  id              String   @id @default(uuid())
+  companyId       String
+  inventoryItemId String
+  quantityAdded   Int
+  costPerUnit     Decimal  @db.Decimal(10, 2)
+  totalCost       Decimal  @db.Decimal(10, 2)   // quantityAdded * costPerUnit
+  supplier        String?
+  notes           String?
+  restockedBy     String?
+  restockDate     DateTime @default(now())
+  createdAt       DateTime @default(now())
+
+  company       Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  inventoryItem InventoryItem @relation(fields: [inventoryItemId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@index([inventoryItemId])
+  @@index([restockDate])
 }

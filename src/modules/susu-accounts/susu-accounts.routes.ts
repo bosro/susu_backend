@@ -53,6 +53,13 @@ router.post(
   susuAccountsController.withdraw
 );
 
+router.post(
+  '/:id/complete',
+  AuthMiddleware.authorize(UserRole.SUPER_ADMIN, UserRole.COMPANY_ADMIN),
+  ValidationMiddleware.validateParams(susuAccountsValidation.params),
+  susuAccountsController.complete
+);
+
 router.get(
   '/:id/transactions',
   ValidationMiddleware.validateParams(susuAccountsValidation.params),
@@ -61,4 +68,8 @@ router.get(
 );
 
 export default router;
+
+
+
+
 

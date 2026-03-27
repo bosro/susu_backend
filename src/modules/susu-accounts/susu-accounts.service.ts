@@ -7,7 +7,6 @@ import { AuditAction, UserRole, TransactionType } from "../../types/enums";
 import { IPaginationQuery } from "../../types/interfaces";
 
 export class SusuAccountsService {
-
   // ✅ HELPER: Get branch IDs assigned to an agent — mirrors customers.service.ts pattern
   private async getAgentBranchIds(agentId: string): Promise<string[]> {
     const assignments = await prisma.agentBranchAssignment.findMany({
@@ -19,9 +18,7 @@ export class SusuAccountsService {
       },
     });
 
-    return assignments
-      .filter(a => a.branch.isActive)
-      .map(a => a.branchId);
+    return assignments.filter((a) => a.branch.isActive).map((a) => a.branchId);
   }
 
   async create(
@@ -33,7 +30,7 @@ export class SusuAccountsService {
       startDate?: Date;
       endDate?: Date;
     },
-    createdBy: string
+    createdBy: string,
   ) {
     console.log("💳 Creating susu account:", {
       companyId,
@@ -122,7 +119,7 @@ export class SusuAccountsService {
     query: IPaginationQuery,
     userRole: UserRole,
     // ✅ FIX: renamed from userBranchId → userId so we can look up AgentBranchAssignment
-    userId?: string
+    userId?: string,
   ) {
     const { page, limit, skip, sortBy, sortOrder } =
       PaginationUtil.getPaginationParams(query);
@@ -153,7 +150,12 @@ export class SusuAccountsService {
 
       if (branchIds.length === 0) {
         console.warn("⚠️ Agent has no assigned branches");
-        return PaginationUtil.formatPaginationResult([], 0, 1, query.limit || 10);
+        return PaginationUtil.formatPaginationResult(
+          [],
+          0,
+          1,
+          query.limit || 10,
+        );
       }
 
       where.customer.branchId = { in: branchIds };
@@ -253,7 +255,7 @@ export class SusuAccountsService {
     companyId: string | null,
     userRole: UserRole,
     // ✅ FIX: renamed from userBranchId → userId
-    userId?: string
+    userId?: string,
   ) {
     const where: any = { id };
 
@@ -276,7 +278,10 @@ export class SusuAccountsService {
       }
 
       where.customer.branchId = { in: branchIds };
-      console.log("✅ Agent accessing account - filtered to branchIds:", branchIds);
+      console.log(
+        "✅ Agent accessing account - filtered to branchIds:",
+        branchIds,
+      );
     }
 
     // Clean up empty customer object if SUPER_ADMIN with no filters
@@ -350,7 +355,7 @@ export class SusuAccountsService {
       endDate?: Date;
       isActive?: boolean;
     },
-    updatedBy: string
+    updatedBy: string,
   ) {
     const where: any = { id };
 
@@ -419,7 +424,7 @@ export class SusuAccountsService {
     id: string,
     companyId: string | null,
     amount: number,
-    withdrawBy: string
+    withdrawBy: string,
   ) {
     if (amount <= 0) {
       throw new Error("Withdrawal amount must be greater than zero");
@@ -450,7 +455,7 @@ export class SusuAccountsService {
 
     if (currentBalance < amount) {
       throw new Error(
-        `Insufficient balance. Available: GH₵${currentBalance.toFixed(2)}, Requested: GH₵${amount.toFixed(2)}`
+        `Insufficient balance. Available: GH₵${currentBalance.toFixed(2)}, Requested: GH₵${amount.toFixed(2)}`,
       );
     }
 
@@ -522,7 +527,7 @@ export class SusuAccountsService {
   async getTransactions(
     id: string,
     companyId: string | null,
-    query: IPaginationQuery
+    query: IPaginationQuery,
   ) {
     const where: any = { id };
 
@@ -549,6 +554,61 @@ export class SusuAccountsService {
       prisma.transaction.count({ where: { susuAccountId: id } }),
     ]);
 
-    return PaginationUtil.formatPaginationResult(transactions, total, page, limit);
+    return PaginationUtil.formatPaginationResult(
+      transactions,
+      total,
+      page,
+      limit,
+    );
+  }
+
+  async complete(
+    id: string,
+    companyId: string | null,
+    data: { completionNote?: string },
+    completedBy: string,
+  ) {
+    const where: any = { id };
+    if (companyId !== null) {
+      where.customer = { companyId };
+    }
+
+    const account = await prisma.susuAccount.findFirst({
+      where,
+      include: { customer: true, susuPlan: true },
+    });
+
+    if (!account) throw new Error("Susu account not found");
+    if (account.completedAt)
+      throw new Error("Account is already marked as completed");
+
+    const updated = await prisma.susuAccount.update({
+      where: { id },
+      data: {
+        isActive: false,
+        completedAt: new Date(),
+        completionNote: data.completionNote || null,
+      },
+      include: {
+        customer: { select: { id: true, firstName: true, lastName: true } },
+        susuPlan: { select: { id: true, name: true, amount: true } },
+      },
+    });
+
+    await AuditLogUtil.log({
+      companyId: account.customer.companyId,
+      userId: completedBy,
+      action: AuditAction.UPDATE,
+      entityType: "SUSU_ACCOUNT",
+      entityId: id,
+      changes: {
+        completedAt: updated.completedAt,
+        completionNote: data.completionNote,
+      },
+    });
+
+    return updated;
   }
 }
+
+
