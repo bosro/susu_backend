@@ -47,7 +47,6 @@ enum TransactionType {
   FEE
 }
 
-
 enum SubscriptionPlan {
   TRIAL
   MONTHLY
@@ -89,7 +88,7 @@ model Company {
   status         CompanyStatus @default(PENDING)
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
-  
+
   users          User[]
   branches       Branch[]
   customers      Customer[]
@@ -98,12 +97,12 @@ model Company {
   dailySummaries DailySummary[]
   notifications  Notification[]
   auditLogs      AuditLog[]
-  subscriptions CompanySubscription[]
+  subscriptions  CompanySubscription[]
 
   inventoryItems    InventoryItem[]
   inventorySales    InventorySale[]
   inventoryRestocks InventoryRestock[]
-  
+
   @@index([status])
   @@index([email])
 }
@@ -119,8 +118,8 @@ model User {
   role             UserRole
   isActive         Boolean   @default(true)
   lastLogin        DateTime?
-  photoUrl         String?   // ✅ NEW: Cloudinary photo URL
-  photoPublicId    String?   // ✅ NEW: Cloudinary public ID
+  photoUrl         String? // ✅ NEW: Cloudinary photo URL
+  photoPublicId    String? // ✅ NEW: Cloudinary public ID
   resetToken       String?
   resetTokenExpiry DateTime?
   themeMode        String?   @default("light")
@@ -129,18 +128,18 @@ model User {
   customSecondary  String?
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
-  
-  company                Company?                @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  assignedBranches       AgentBranchAssignment[]
-  collectionsRecorded    Collection[]
-  dailySummaries         DailySummary[]
-  createdNotifications   Notification[]          @relation("CreatedNotifications")
-  receivedNotifications  Notification[]          @relation("ReceivedNotifications")
-  auditLogs              AuditLog[]
-  refreshTokens          RefreshToken[]
 
-  inventorySales    InventorySale[]   @relation("InventorySaleAgent")
-  
+  company               Company?                @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  assignedBranches      AgentBranchAssignment[]
+  collectionsRecorded   Collection[]
+  dailySummaries        DailySummary[]
+  createdNotifications  Notification[]          @relation("CreatedNotifications")
+  receivedNotifications Notification[]          @relation("ReceivedNotifications")
+  auditLogs             AuditLog[]
+  refreshTokens         RefreshToken[]
+
+  inventorySales InventorySale[] @relation("InventorySaleAgent")
+
   @@index([companyId])
   @@index([email])
   @@index([role])
@@ -152,10 +151,10 @@ model AgentBranchAssignment {
   branchId   String
   assignedAt DateTime @default(now())
   assignedBy String?
-  
+
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
   branch Branch @relation(fields: [branchId], references: [id], onDelete: Cascade)
-  
+
   @@unique([userId, branchId])
   @@index([userId])
   @@index([branchId])
@@ -167,53 +166,53 @@ model RefreshToken {
   token     String   @unique
   expiresAt DateTime
   createdAt DateTime @default(now())
-  
+
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
+
   @@index([userId])
   @@index([token])
 }
 
 model Branch {
-  id             String                  @id @default(uuid())
-  companyId      String
-  name           String
-  address        String?
-  phone          String?
-  isActive       Boolean                 @default(true)
-  createdAt      DateTime                @default(now())
-  updatedAt      DateTime                @updatedAt
-  
+  id        String   @id @default(uuid())
+  companyId String
+  name      String
+  address   String?
+  phone     String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   company        Company                 @relation(fields: [companyId], references: [id], onDelete: Cascade)
   assignedAgents AgentBranchAssignment[]
   customers      Customer[]
   collections    Collection[]
   dailySummaries DailySummary[]
-  
+
   @@index([companyId])
   @@index([isActive])
 }
 
 model Customer {
-  id           String        @id @default(uuid())
-  companyId    String
-  branchId     String
-  firstName    String
-  lastName     String
-  phone        String
-  email        String?
-  address      String?
-  idNumber     String?
-  photoUrl     String?
-  isActive     Boolean       @default(true)
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
-  
+  id        String   @id @default(uuid())
+  companyId String
+  branchId  String
+  firstName String
+  lastName  String
+  phone     String
+  email     String?
+  address   String?
+  idNumber  String?
+  photoUrl  String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   company      Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
   branch       Branch        @relation(fields: [branchId], references: [id])
   susuAccounts SusuAccount[]
   collections  Collection[]
-  
+
   @@unique([companyId, phone])
   @@index([companyId])
   @@index([branchId])
@@ -221,49 +220,49 @@ model Customer {
 }
 
 model SusuPlan {
-  id           String        @id @default(uuid())
+  id           String       @id @default(uuid())
   companyId    String
   name         String
   description  String?
   type         SusuPlanType
-  amount       Decimal       @db.Decimal(10, 2)
+  amount       Decimal      @db.Decimal(10, 2)
   frequency    String?
   duration     Int?
-  targetAmount Decimal?      @db.Decimal(10, 2)
+  targetAmount Decimal?     @db.Decimal(10, 2)
   imageUrl     String?
-  isActive     Boolean       @default(true)
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
-  
+  isActive     Boolean      @default(true)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
   company      Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
   susuAccounts SusuAccount[]
-  
+
   @@index([companyId])
   @@index([isActive])
   @@index([type])
 }
 
 model SusuAccount {
-  id            String        @id @default(uuid())
+  id            String    @id @default(uuid())
   customerId    String
   susuPlanId    String
-  accountNumber String        @unique
-  balance       Decimal       @db.Decimal(10, 2) @default(0)
-  targetAmount  Decimal?      @db.Decimal(10, 2)
-  startDate     DateTime      @default(now())
+  accountNumber String    @unique
+  balance       Decimal   @default(0) @db.Decimal(10, 2)
+  targetAmount  Decimal?  @db.Decimal(10, 2)
+  startDate     DateTime  @default(now())
   endDate       DateTime?
-  isActive      Boolean       @default(true)
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
-  completedAt    DateTime?        // when admin marked it complete
+  completedAt    DateTime? // when admin marked it complete
   completionNote String?
-  
+
   customer     Customer      @relation(fields: [customerId], references: [id], onDelete: Cascade)
   susuPlan     SusuPlan      @relation(fields: [susuPlanId], references: [id])
   collections  Collection[]
   transactions Transaction[]
-  
+
   @@index([customerId])
   @@index([susuPlanId])
   @@index([isActive])
@@ -286,20 +285,20 @@ model Collection {
   createdAt      DateTime         @default(now())
   updatedAt      DateTime         @updatedAt
   viewedBy       String[]         @default([])
-  
+
   company     Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
   branch      Branch      @relation(fields: [branchId], references: [id])
   customer    Customer    @relation(fields: [customerId], references: [id])
   susuAccount SusuAccount @relation(fields: [susuAccountId], references: [id])
   agent       User        @relation(fields: [agentId], references: [id])
-  
+
   @@index([companyId])
   @@index([branchId])
   @@index([customerId])
   @@index([agentId])
   @@index([collectionDate])
   @@index([status])
-  @@index([viewedBy]) 
+  @@index([viewedBy])
 }
 
 model Transaction {
@@ -313,9 +312,9 @@ model Transaction {
   description   String?
   metadata      Json?
   createdAt     DateTime        @default(now())
-  
+
   susuAccount SusuAccount @relation(fields: [susuAccountId], references: [id], onDelete: Cascade)
-  
+
   @@index([susuAccountId])
   @@index([type])
   @@index([createdAt])
@@ -336,11 +335,11 @@ model DailySummary {
   notes            String?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
-  
+
   company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
   branch  Branch  @relation(fields: [branchId], references: [id])
   agent   User    @relation(fields: [agentId], references: [id])
-  
+
   @@unique([companyId, branchId, agentId, date])
   @@index([companyId])
   @@index([branchId])
@@ -359,11 +358,11 @@ model Notification {
   data      Json?
   createdBy String?
   createdAt DateTime @default(now())
-  
+
   company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
   user    User?   @relation("ReceivedNotifications", fields: [userId], references: [id])
   creator User?   @relation("CreatedNotifications", fields: [createdBy], references: [id])
-  
+
   @@index([companyId])
   @@index([userId])
   @@index([isRead])
@@ -381,10 +380,10 @@ model AuditLog {
   ipAddress  String?
   userAgent  String?
   createdAt  DateTime @default(now())
-  
+
   company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
   user    User    @relation(fields: [userId], references: [id])
-  
+
   @@index([companyId])
   @@index([userId])
   @@index([action])
@@ -392,23 +391,20 @@ model AuditLog {
   @@index([createdAt])
 }
 
-
-
-
 // Add this model
 model CompanySubscription {
-  id          String             @id @default(uuid())
-  companyId   String
-  plan        SubscriptionPlan   @default(TRIAL)
-  status      SubscriptionStatus @default(PENDING)
-  startDate   DateTime?
-  endDate     DateTime?
-  amount      Decimal?           @db.Decimal(10, 2)
-  notes       String?
-  createdBy   String?
-  updatedBy   String?
-  createdAt   DateTime           @default(now())
-  updatedAt   DateTime           @updatedAt
+  id        String             @id @default(uuid())
+  companyId String
+  plan      SubscriptionPlan   @default(TRIAL)
+  status    SubscriptionStatus @default(PENDING)
+  startDate DateTime?
+  endDate   DateTime?
+  amount    Decimal?           @db.Decimal(10, 2)
+  notes     String?
+  createdBy String?
+  updatedBy String?
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
 
   company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
@@ -418,31 +414,30 @@ model CompanySubscription {
   @@index([plan])
 }
 
-
 // ==================== ADD THESE MODELS TO schema.prisma ====================
 
 model InventoryItem {
-  id               String              @id @default(uuid())
-  companyId        String
-  name             String
-  description      String?
-  category         String?
-  sku              String?             // Stock Keeping Unit
-  unit             String?             @default("piece") // piece, kg, box, set, etc.
-  imageUrl         String?
-  costPrice        Decimal             @db.Decimal(10, 2)   // what it cost to acquire
-  sellingPrice     Decimal             @db.Decimal(10, 2)   // default selling price
-  quantityInStock  Int                 @default(0)
-  lowStockThreshold Int?               @default(5)          // alert when below this
-  status           InventoryItemStatus @default(ACTIVE)
-  createdBy        String?
-  updatedBy        String?
-  createdAt        DateTime            @default(now())
-  updatedAt        DateTime            @updatedAt
+  id                String              @id @default(uuid())
+  companyId         String
+  name              String
+  description       String?
+  category          String?
+  sku               String? // Stock Keeping Unit
+  unit              String?             @default("piece") // piece, kg, box, set, etc.
+  imageUrl          String?
+  costPrice         Decimal             @db.Decimal(18, 2) // was Decimal(10, 2)
+  sellingPrice      Decimal             @db.Decimal(18, 2) // was Decimal(10, 2)
+  quantityInStock   Int                 @default(0)
+  lowStockThreshold Int?                @default(5) // alert when below this
+  status            InventoryItemStatus @default(ACTIVE)
+  createdBy         String?
+  updatedBy         String?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
 
-  company   Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  sales     InventorySale[]
-  restocks  InventoryRestock[]
+  company  Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  sales    InventorySale[]
+  restocks InventoryRestock[]
 
   @@index([companyId])
   @@index([status])
@@ -451,23 +446,23 @@ model InventoryItem {
 }
 
 model InventorySale {
-  id              String              @id @default(uuid())
-  companyId       String
-  inventoryItemId String
-  agentId         String              // who sold it
-  quantitySold    Int
-  costPriceAtSale Decimal             @db.Decimal(10, 2)   // snapshot of cost price at time of sale
-  salePricePerUnit Decimal            @db.Decimal(10, 2)   // actual price sold at
-  totalCost       Decimal             @db.Decimal(10, 2)   // costPriceAtSale * quantitySold
-  totalRevenue    Decimal             @db.Decimal(10, 2)   // salePricePerUnit * quantitySold
-  profit          Decimal             @db.Decimal(10, 2)   // totalRevenue - totalCost
-  buyerName       String?
-  buyerContact    String?
-  notes           String?
-  status          InventorySaleStatus @default(COMPLETED)
-  saleDate        DateTime            @default(now())
-  createdAt       DateTime            @default(now())
-  updatedAt       DateTime            @updatedAt
+  id               String              @id @default(uuid())
+  companyId        String
+  inventoryItemId  String
+  agentId          String // who sold it
+  quantitySold     Int
+  costPriceAtSale  Decimal             @db.Decimal(18, 2) // was Decimal(10, 2)
+  salePricePerUnit Decimal             @db.Decimal(18, 2) // was Decimal(10, 2)
+  totalCost        Decimal             @db.Decimal(18, 2) // was Decimal(10, 2)
+  totalRevenue     Decimal             @db.Decimal(18, 2) // was Decimal(10, 2)
+  profit           Decimal             @db.Decimal(18, 2) // was Decimal(10, 2)
+  buyerName        String?
+  buyerContact     String?
+  notes            String?
+  status           InventorySaleStatus @default(COMPLETED)
+  saleDate         DateTime            @default(now())
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
 
   company       Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
   inventoryItem InventoryItem @relation(fields: [inventoryItemId], references: [id], onDelete: Cascade)
@@ -485,8 +480,8 @@ model InventoryRestock {
   companyId       String
   inventoryItemId String
   quantityAdded   Int
-  costPerUnit     Decimal  @db.Decimal(10, 2)
-  totalCost       Decimal  @db.Decimal(10, 2)   // quantityAdded * costPerUnit
+  costPerUnit     Decimal  @db.Decimal(18, 2) // was Decimal(10, 2)
+  totalCost       Decimal  @db.Decimal(18, 2) // was Decimal(10, 2)
   supplier        String?
   notes           String?
   restockedBy     String?
