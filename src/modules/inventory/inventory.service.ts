@@ -343,11 +343,14 @@ export class InventoryService {
 
     if (!item) throw new Error("Inventory item not found");
 
-    if (item._count.sales > 0) {
-      throw new Error(
-        `Cannot delete item with ${item._count.sales} sale record(s). Consider marking it as DISCONTINUED instead.`,
-      );
-    }
+    // inventory.service.ts - deleteItem()
+if (item._count.sales > 0) {
+  const error: any = new Error(
+    `Cannot delete item with ${item._count.sales} sale record(s). Consider marking it as DISCONTINUED instead.`
+  );
+  error.statusCode = 400; // ← add this
+  throw error;
+}
 
     await prisma.inventoryItem.delete({ where: { id } });
 
